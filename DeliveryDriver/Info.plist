@@ -4,7 +4,14 @@
 <dict>
 	<key>UIBackgroundModes</key>
 	<array>
+		<string>location</string>
 		<string>remote-notification</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We need your location to show its status.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>We need your location in the background to show its status.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>We need motion access to detect if you are in motion or stationary.</string>
 </dict>
 </plist>
