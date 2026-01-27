@@ -11,6 +11,7 @@ enum Tab: Int, CaseIterable, Identifiable {
     case dashboard
     case stats
     case settings
+    case history
     
     var id: Int { self.rawValue }
     
