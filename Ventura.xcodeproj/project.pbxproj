@@ -47,7 +47,6 @@
 		342336882F2ABA240030A66A /* Exceptions for "SessionInfoLiveActivity" folder in "Ventura" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				LiveActivityManager.swift,
 				SessionActivityAttributes.swift,
 			);
 			target = 3459F0C42F292B5900CEC29A /* Ventura */;
@@ -70,7 +69,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
-				LiveActivityManager.swift,
 			);
 			target = 34FADBB72F2AB84C00F9616C /* SessionInfoLiveActivityExtension */;
 		};
@@ -290,6 +288,8 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Ventura/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Ventura;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "We need your location in the background to show its status.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We need your location to show its status.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "We need motion access to detect if you are in motion or stationary.";
@@ -342,6 +342,8 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Ventura/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Ventura;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "We need your location in the background to show its status.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We need your location to show its status.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "We need motion access to detect if you are in motion or stationary.";

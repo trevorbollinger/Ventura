@@ -40,10 +40,18 @@ final class Session {
     var wageTypeRaw: String = "Hourly"
     var reimbursementTypeRaw: String = "Per Mile"
     
-    // --- Pay Accumulators (The "Buckets") ---
-    var hourlyPay: Decimal = 0.0   // Standard Hourly Mode Pay
-    var drivingPay: Decimal = 0.0  // Split Mode - Active Pay
-    var homePay: Decimal = 0.0     // Split Mode - Passive Pay
+    // --- Pay Accumulators (Computed) ---
+    // These are now derived dynamically from time buckets + rates
+    
+    var drivingPay: Decimal {
+        let hours = Decimal(timeAway) / 3600
+        return hours * Decimal(drivingWage)
+    }
+    
+    var homePay: Decimal {
+        let hours = Decimal(timeAtHome) / 3600
+        return hours * Decimal(passiveWage)
+    }
     
     // --- Maintenance & Gas Snapshot ---
     var includeMaintenance: Bool = false
@@ -97,22 +105,31 @@ final class Session {
     
 
     var totalHourlyPay: Decimal {
-        if wageTypeRaw == "Split" {
+        switch wageTypeRaw {
+        case "Split":
             return drivingPay + homePay
-        } else {
+        case "Hourly":
             // Standard Hourly: Calculate dynamically based on perfect wall-clock time
-            // This ensures Hourly Rate / Net Profit is always perfectly constant
-            // and immune to timer drift or backgrounding issues.
             return durationInHours * Decimal(hourlyWage)
+        case "None":
+            return 0
+        default:
+            return 0
         }
     }
     
     var totalMileageReimbursement: Decimal {
-        Decimal(mileageReimbursementRate) * Decimal(totalMiles)
+        if reimbursementTypeRaw == "Per Mile" {
+             return Decimal(mileageReimbursementRate) * Decimal(totalMiles)
+        }
+        return 0
     }
     
     var totalDeliveryRates: Decimal {
-        Decimal(perDeliveryRate ?? 0) * Decimal(deliveriesCount)
+        if reimbursementTypeRaw == "Per Delivery" {
+            return Decimal(perDeliveryRate ?? 0) * Decimal(deliveriesCount)
+        }
+        return 0
     }
 
     var totalTips: Decimal {
@@ -123,8 +140,10 @@ final class Session {
     var grossEarnings: Decimal {
         // Use the computed property to handle Split vs Hourly logic centrally
         let hourlyPay = totalHourlyPay 
-        let mileagePay = Decimal(mileageReimbursementRate) * Decimal(totalMiles)
-        let flatRates = Decimal(perDeliveryRate ?? 0) * Decimal(deliveriesCount)
+        // These now internally check the reimbursement type, so we can just sum them
+        let mileagePay = totalMileageReimbursement
+        let flatRates = totalDeliveryRates
+        
         let total = hourlyPay + mileagePay + totalTips + flatRates
         
         return total
@@ -158,10 +177,13 @@ final class Session {
         // Clamp to the lowest applicable wage to prevent startup glitches where it shows $7.99 instead of $10.00.
         if totalMiles == 0 {
             let baseWage: Double
-            if wageTypeRaw == "Split" {
+            switch wageTypeRaw {
+            case "Split":
                 baseWage = min(drivingWage, passiveWage)
-            } else {
+            case "Hourly":
                 baseWage = hourlyWage
+            default:
+                baseWage = 0
             }
             return max(calculatedRate, Decimal(baseWage))
         }
@@ -265,5 +287,19 @@ final class Session {
         self.maintenanceCostPerMile = other.maintenanceCostPerMile
         self.includeGas = other.includeGas
         invalidateCache() // Recalculate earnings with new rates
+    }
+
+    func durationString(at date: Date = Date()) -> String {
+        let end = endTimestamp ?? date
+        let diff = max(0, end.timeIntervalSince(startTimestamp))
+        let hours = Int(diff) / 3600
+        let minutes = (Int(diff) % 3600) / 60
+        let seconds = Int(diff) % 60
+        
+        if hours > 0 {
+            return String(format: "%dh %dm", hours, minutes)
+        } else {
+            return String(format: "%dm %ds", minutes, seconds)
+        }
     }
 }

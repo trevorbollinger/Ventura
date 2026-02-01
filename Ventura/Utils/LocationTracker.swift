@@ -24,6 +24,7 @@ class LocationTracker: NSObject, ObservableObject {
     @Published var gpsAccuracy: Double = 0.0
     @Published var currentSpeedMph: Double = 0.0
     @Published var dataPointsCollected: Int = 0
+    @Published var isEffectivelyMoving: Bool = false
     
     private var lastValidLocation: CLLocation?
     
@@ -51,9 +52,8 @@ class LocationTracker: NSObject, ObservableObject {
     func startTracking() {
         guard !isTracking else { return }
         isTracking = true
-        totalDistance = 0.0
-        dataPointsCollected = 0
-        lastValidLocation = nil
+        // Do NOT reset totalDistance here, as we may be restoring an existing session.
+        // resetDistance() should be called explicitly for new sessions.
         
         // Enforce maximum accuracy for tracking session
         locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
@@ -77,6 +77,13 @@ class LocationTracker: NSObject, ObservableObject {
         totalDistance = 0.0
         dataPointsCollected = 0
         lastValidLocation = nil
+        isEffectivelyMoving = false
+        trackingStatus = "Distance Reset"
+    }
+    
+    func setDistance(_ meters: Double) {
+        totalDistance = meters
+        print("📍 Restored distance to: \(meters) meters")
     }
     
     private func isValidLocation(_ location: CLLocation) -> Bool {
@@ -93,6 +100,12 @@ class LocationTracker: NSObject, ObservableObject {
         
         // Filter unrealistic speeds (> 200 mph = 89.4 m/s)
         if location.speed > 89.4 {
+            return false
+        }
+        
+        // Filter out stale locations (> 15 seconds old)
+        // This prevents the "teleport from home" bug when launching the app at work
+        if -location.timestamp.timeIntervalSinceNow > 15 {
             return false
         }
         
@@ -113,36 +126,56 @@ extension LocationTracker: CLLocationManagerDelegate {
             // --- ANTI-DRIFT & JITTER FILTERING ---
             
             // 1. Speed Filtering:
-            // Apple's speed can be jittery when sitting still. 
-            // We ignore anything below ~2.2 mph (1.0 m/s) to show 0 mph when stationary.
+            // Apple's speed can be jittery when sitting still.
+            // We ignore anything below ~7.8 mph (3.5 m/s) to filter out GPS wander/walking.
             let reportedSpeed = max(0, location.speed)
-            let isEffectivelyMoving = reportedSpeed > 1.0 
             
-            currentSpeedMph = isEffectivelyMoving ? (reportedSpeed * 2.23694) : 0
+            // Stricter movement filter: Must be moving > 3.5 m/s AND have good accuracy
+            // This is aggressive to prevent "phantom mileage" while parked.
+            let isMovingSpeed = reportedSpeed > 3.5
+            let isAccurateEnough = location.horizontalAccuracy < 12
+            
+            // We only consider "Effectively Moving" if we have speed and accuracy
+            let isMoving = isMovingSpeed && isAccurateEnough
+            
+            // Debounce/Consistency check could go here, but for now direct update
+            self.isEffectivelyMoving = isMoving
+            
+            currentSpeedMph = isMoving ? (reportedSpeed * 2.23694) : 0
             
             // Update Diagnostics
             gpsAccuracy = location.horizontalAccuracy
             dataPointsCollected += 1
-            trackingStatus = "Recording (±\(Int(location.horizontalAccuracy))m)"
+            trackingStatus = isMoving ? "Moving (\(Int(currentSpeedMph)) mph)" : "Stationary (Filtered)"
             
             // 2. Distance Filtering:
-            // Only add distance if we are actually moving at a real speed (> 2.2 mph)
-            // or if we have moved a significant distance (15m+) with high precision.
+            // Only add distance if we are actually moving at a real speed
+            // or if we have moved a significant distance (25m+) with high precision.
+            
             if let lastLocation = lastValidLocation {
                 let distance = location.distance(from: lastLocation)
                 
-                // We add distance only if:
-                // - We are moving at a driveable speed (> 2.2 mph)
-                // - OR we have moved a significant distance with good accuracy
-                let significantMovement = distance > 15 && location.horizontalAccuracy < 20
+                // Tighten Significant Move: Increase from 15m to 25m to be safer against drift
+                let significantMovement = distance > 25 && location.horizontalAccuracy < 10
                 
-                if (isEffectivelyMoving || significantMovement) && distance < 1000 {
-                    totalDistance += distance
+                if isMoving || significantMovement {
+                    // Sanity check: prevent teleporting (> 500m jump)
+                    if distance < 500 {
+                        totalDistance += distance
+                        lastValidLocation = location
+                    }
                 }
+            } else {
+                lastValidLocation = location
             }
             
-            lastValidLocation = location
-            currentLocation = location
+            // Only publish the new location if we accepted the move (or it's the first one).
+            // This prevents the map pin from jittering around when stationary.
+            // We re-check the condition or simply check if lastValidLocation changed to this location?
+            // Simpler: If we updated lastValidLocation, then update currentLocation.
+            if lastValidLocation == location {
+                 currentLocation = location
+            }
         }
     }
     

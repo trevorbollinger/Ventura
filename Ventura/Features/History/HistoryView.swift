@@ -20,6 +20,8 @@ struct HistoryView: View {
     @State private var selectedSessionIDs: Set<UUID> = []
     @State private var showRateConflictSheet = false
     @State private var conflictingFields: [String] = []
+    @State private var showDeleteConfirmation = false
+    @State private var showCombineConfirmation = false
     
     private var selectedSessions: [Session] {
         sessions.filter { selectedSessionIDs.contains($0.id) }
@@ -84,7 +86,7 @@ struct HistoryView: View {
                         HStack(spacing: 8) {
                             // Delete
                             Button {
-                                deleteSelectedSessions()
+                                showDeleteConfirmation = true
                             } label: {
                                 Label("Delete", systemImage: "trash")
                                     .padding(.horizontal, 4)
@@ -95,7 +97,7 @@ struct HistoryView: View {
                             // Combine
                             if selectedSessionIDs.count >= 2 {
                                 Button {
-                                    attemptCombine()
+                                    showCombineConfirmation = true
                                 } label: {
                                     Label("Combine", systemImage: "arrow.triangle.merge")
                                         .padding(.horizontal, 4)
@@ -114,6 +116,22 @@ struct HistoryView: View {
                 ) { referenceSession in
                     normalizeAndCombine(using: referenceSession)
                 }
+            }
+            .confirmationDialog("Delete Sessions", isPresented: $showDeleteConfirmation) {
+                Button("Delete \(selectedSessions.count) Session\(selectedSessions.count == 1 ? "" : "s")", role: .destructive) {
+                    deleteSelectedSessions()
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Are you sure you want to delete these sessions? This action cannot be undone.")
+            }
+            .confirmationDialog("Combine Sessions", isPresented: $showCombineConfirmation) {
+                Button("Combine \(selectedSessions.count) Sessions") {
+                    attemptCombine()
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Are you sure you want to combine these sessions into a single entry?")
             }
         }
     }
@@ -186,20 +204,7 @@ struct HistoryView: View {
         }
     }
     
-    private func durationString(for session: Session) -> String {
-        guard let end = session.endTimestamp else { return "In Progress" }
-        let diff = end.timeIntervalSince(session.startTimestamp)
-        
-        let hours = Int(diff) / 3600
-        let minutes = (Int(diff) % 3600) / 60
-        let seconds = Int(diff) % 60
-        
-        if hours > 0 {
-            return String(format: "%dh %dm %ds", hours, minutes, seconds)
-        } else {
-            return String(format: "%dm %ds", minutes, seconds)
-        }
-    }
+
 }
 
 // Extracted row content for reuse
@@ -213,7 +218,7 @@ struct SessionRowContent: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                 
-                Text(durationString(for: session))
+                Text(session.durationString())
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -236,20 +241,7 @@ struct SessionRowContent: View {
         }
     }
     
-    private func durationString(for session: Session) -> String {
-        guard let end = session.endTimestamp else { return "In Progress" }
-        let diff = end.timeIntervalSince(session.startTimestamp)
-        
-        let hours = Int(diff) / 3600
-        let minutes = (Int(diff) % 3600) / 60
-        let seconds = Int(diff) % 60
-        
-        if hours > 0 {
-            return String(format: "%dh %dm %ds", hours, minutes, seconds)
-        } else {
-            return String(format: "%dm %ds", minutes, seconds)
-        }
-    }
+
 }
 
 #Preview {

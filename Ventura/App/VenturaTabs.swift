@@ -36,6 +36,9 @@ enum Tab: Int, CaseIterable, Identifiable {
 }
 
 struct VenturaTabs: View {
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var sessionManager: SessionManager
+    
     @State private var selectedTab: Tab = .dashboard
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
     @State private var showingOnboarding = false
@@ -78,6 +81,9 @@ struct VenturaTabs: View {
                 showingOnboarding = true
                 hasSeenOnboarding = true
             }
+            
+            // Configure SessionManager
+            sessionManager.configure(modelContext: modelContext)
         }
     }
 }

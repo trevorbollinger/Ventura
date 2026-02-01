@@ -13,11 +13,30 @@ struct SettingsHomeLocationEditView: View {
     @Bindable var userSettings: UserSettings
     @Environment(\.dismiss) private var dismiss
     
-    let icons = ["house.fill", "building.2.fill", "storefront.fill", "briefcase.fill", "map.fill", "pin.fill", "location.fill"]
+    let icons = ["house.fill", "building.2.fill", "storefront.fill", "briefcase.fill", "map.fill", "pin.fill", "location.fill", "fork.knife"]
     
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
+                
+                // Name Section
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Location Name")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
+                    
+                    TextField("e.g. Home", text: Binding(
+                        get: { userSettings.homeName ?? "" },
+                        set: { userSettings.homeName = $0.isEmpty ? nil : $0 }
+                    ))
+                    .font(.headline)
+                    .padding()
+                    .glassModifier(in: RoundedRectangle(cornerRadius: 20))
+
+                }
+                
+                
                 // Icon Section
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Icon")
@@ -49,22 +68,7 @@ struct SettingsHomeLocationEditView: View {
                 }
 
                 
-                // Name Section
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Location Name")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 4)
-                    
-                    TextField("e.g. Home", text: Binding(
-                        get: { userSettings.homeName ?? "" },
-                        set: { userSettings.homeName = $0.isEmpty ? nil : $0 }
-                    ))
-                    .font(.headline)
-                    .padding()
-                    .glassModifier(in: RoundedRectangle(cornerRadius: 20))
-
-                }
+               
 //
                 
                 // Location Map Section
@@ -150,7 +154,7 @@ struct SettingsHomeLocationEditView: View {
                                             .monospacedDigit()
                                     }
                                     
-                                    Slider(value: $userSettings.homeRadius, in: 50...500, step: 10) {
+                                    Slider(value: $userSettings.homeRadius, in: 10...150, step: 5) {
                                         Text("Radius")
                                     } 
                                     .tint(.blue)
