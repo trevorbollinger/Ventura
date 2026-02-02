@@ -4,7 +4,7 @@ import MapKit
 import SwiftData
 import SwiftUI
 
-struct DashboardView: View {
+struct DriveView: View {
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var permissionManager = PermissionManager.shared
     @EnvironmentObject private var sessionManager: SessionManager // NEW: Injected
@@ -44,6 +44,14 @@ struct DashboardView: View {
             // MARK: - Map Layer
             Map(position: $position) {
                 UserAnnotation()
+
+                // Active Session Route
+                if let session = activeSession, !session.route.isEmpty {
+                    MapPolyline(coordinates: session.route.map { 
+                        CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) 
+                    })
+                    .stroke(.blue, style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
+                }
 
                 if let userSettings = settings.first,
                     let lat = userSettings.homeLatitude,
@@ -88,7 +96,8 @@ struct DashboardView: View {
                     SessionStatsCard(
                         session: activeSession ?? lastSession,
                         isLive: activeSession != nil,
-                        timelineDate: timeline.date
+                        timelineDate: timeline.date,
+                        showHomeStats: settings.first?.homeLatitude != nil
                     )
                     .onTapGesture {
                         if activeSession == nil {

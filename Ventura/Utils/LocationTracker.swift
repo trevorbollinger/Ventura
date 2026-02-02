@@ -26,8 +26,10 @@ class LocationTracker: NSObject, ObservableObject {
     @Published var dataPointsCollected: Int = 0
     @Published var isEffectivelyMoving: Bool = false
     
+    private var trackingStartTime: Date?
     private var lastValidLocation: CLLocation?
-    
+
+
     override init() {
         super.init()
         setupLocationManager()
@@ -52,6 +54,8 @@ class LocationTracker: NSObject, ObservableObject {
     func startTracking() {
         guard !isTracking else { return }
         isTracking = true
+        trackingStartTime = Date() // Mark the exact start time
+        
         // Do NOT reset totalDistance here, as we may be restoring an existing session.
         // resetDistance() should be called explicitly for new sessions.
         
@@ -61,18 +65,20 @@ class LocationTracker: NSObject, ObservableObject {
         locationManager.startUpdatingLocation()
         
         trackingStatus = "Active (High Precision)"
-        print("📍 Started high-precision tracking")
+        print("📍 Started high-precision tracking at \(trackingStartTime!)")
     }
     
     func stopTracking() {
         guard isTracking else { return }
         isTracking = false
+        trackingStartTime = nil
         locationManager.stopUpdatingLocation()
         lastValidLocation = nil
+        currentLocation = nil // Clear UI state to prevent showing old location on next start
         trackingStatus = "Stopped"
         print("📍 Stopped tracking")
     }
-    
+
     func resetDistance() {
         totalDistance = 0.0
         dataPointsCollected = 0
@@ -92,8 +98,15 @@ class LocationTracker: NSObject, ObservableObject {
             return false
         }
         
+        // STRICT TIMESTAMP FILTER:
+        if let startTime = trackingStartTime {
+            if location.timestamp < startTime {
+                // Reject stale locations from before the session started
+                return false
+            }
+        }
+        
         // Filter out very poor accuracy (e.g. > 50 meters)
-        // This prevents massive distance jumps in poor signal areas
         if location.horizontalAccuracy > 50 {
             return false
         }
@@ -104,7 +117,6 @@ class LocationTracker: NSObject, ObservableObject {
         }
         
         // Filter out stale locations (> 15 seconds old)
-        // This prevents the "teleport from home" bug when launching the app at work
         if -location.timestamp.timeIntervalSinceNow > 15 {
             return false
         }
@@ -154,14 +166,27 @@ extension LocationTracker: CLLocationManagerDelegate {
             
             if let lastLocation = lastValidLocation {
                 let distance = location.distance(from: lastLocation)
+                let timeDelta = location.timestamp.timeIntervalSince(lastLocation.timestamp)
                 
                 // Tighten Significant Move: Increase from 15m to 25m to be safer against drift
                 let significantMovement = distance > 25 && location.horizontalAccuracy < 10
                 
                 if isMoving || significantMovement {
-                    // Sanity check: prevent teleporting (> 500m jump)
-                    if distance < 500 {
+                    // DYNAMIC GUARD (Tunnel Support):
+                    // Instead of a hard 500m limit, we allow 500m + (Time * MaxSpeed).
+                    // If you are in a tunnel for 60s at 30m/s, you move 1800m. The old 500m limit would block this.
+                    // We assume a max legitimate speed of ~60 m/s (134 mph) for the buffer.
+                    let dynamicBuffer = 500.0 + (max(0, timeDelta) * 60.0)
+                    
+                    if distance < dynamicBuffer {
                         totalDistance += distance
+                        lastValidLocation = location
+                    } else if totalDistance < 100 {
+                         // "Snap-to-Reality" Fix:
+                        // If we are just starting the session (low distance) and see a huge jump,
+                        // it's likely the first point was a "wrong anchor" (fresh timestamp, stale coords).
+                        // We accept the new location as the true start point, but DO NOT add the huge jump distance.
+                        print("📍 [Tracker] Snap-to-Reality triggered. Correcting start location (Jump: \(Int(distance))m)")
                         lastValidLocation = location
                     }
                 }

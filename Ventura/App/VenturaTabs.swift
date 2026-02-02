@@ -13,14 +13,16 @@ enum Tab: Int, CaseIterable, Identifiable {
     case stats
     case settings
     case history
+    case market
     
     var id: Int { self.rawValue }
     
     var title: String {
         switch self {
-        case .dashboard: return "Dashboard"
-        case .stats: return "Stats"
+        case .dashboard: return "Drive"
+        case .stats: return "Analytics"
         case .history: return "History"
+        case .market: return "Market"
         case .settings: return "Settings"
         }
     }
@@ -28,8 +30,9 @@ enum Tab: Int, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .dashboard: return "car.fill"
-        case .stats: return "chart.bar.fill"
-        case .history: return "list.bullet"
+        case .stats: return "chart.bar.xaxis"
+        case .history: return "clock.fill"
+        case .market: return "storefront.fill"
         case .settings: return "gearshape.fill"
         }
     }
@@ -48,7 +51,7 @@ struct VenturaTabs: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            DashboardView()
+            DriveView()
                 .tabItem {
                     Label(Tab.dashboard.title, systemImage: Tab.dashboard.icon)
                 }
@@ -65,6 +68,12 @@ struct VenturaTabs: View {
                     Label(Tab.history.title, systemImage: Tab.history.icon)
                 }
                 .tag(Tab.history)
+            
+            SettingsView()
+                .tabItem {
+                    Label(Tab.market.title, systemImage: Tab.market.icon)
+                }
+                .tag(Tab.market)
             
             SettingsView()
                 .tabItem {
@@ -88,6 +97,17 @@ struct VenturaTabs: View {
     }
 }
 
+
 #Preview {
-    VenturaTabs()
+    let container = PreviewHelper.makeContainer()
+    return VenturaTabs()
+        .modelContainer(container)
+        .environmentObject(SessionManager())
+}
+
+#Preview("Empty State") {
+    let container = PreviewHelper.makeEmptyContainer()
+    return VenturaTabs()
+        .modelContainer(container)
+        .environmentObject(SessionManager())
 }
