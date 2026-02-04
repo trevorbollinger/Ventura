@@ -17,6 +17,9 @@ struct SessionSummarySheet: View {
     @State private var saveTrigger = false
     var isPresentedAsSheet: Bool = false
 
+    @ScaledMetric(relativeTo: .caption) private var arrowSize: CGFloat = 10
+    @ScaledMetric(relativeTo: .caption) private var mapIconSize: CGFloat = 14
+
     var body: some View {
         ScrollView {
                 VStack(spacing: 20) {
@@ -27,7 +30,7 @@ struct SessionSummarySheet: View {
                             DateStat(title: "Start", date: startBinding)
                             
                             Image(systemName: "arrow.right")
-                                .font(.system(size: 10, weight: .bold))
+                                .font(.system(size: arrowSize, weight: .bold))
                                 .foregroundStyle(.tertiary)
                             
                             DateStat(title: "End", date: endBinding)
@@ -143,7 +146,7 @@ struct SessionSummarySheet: View {
 
                                     // Expand Icon
                                     Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                        .font(.system(size: 14, weight: .bold))
+                                        .font(.system(size: mapIconSize, weight: .bold))
                                         .foregroundStyle(.white)
                                         .padding(6)
                                         .background(.black.opacity(0.6))
@@ -262,15 +265,11 @@ struct SessionSummarySheet: View {
     private var formattedDuration: String {
         let doubleHours = NSDecimalNumber(decimal: session.durationInHours)
             .doubleValue
-        let h = Int(doubleHours)
-        let m = Int((doubleHours - Double(h)) * 60)
-        return String(format: "%d:%02d", h, m)
+        return TimeFormatter.formatDuration(doubleHours * 3600)
     }
 
     private func formatSeconds(_ seconds: Double) -> String {
-        let h = Int(seconds) / 3600
-        let m = (Int(seconds) % 3600) / 60
-        return String(format: "%dh %dm", h, m)
+        return TimeFormatter.formatDuration(seconds)
     }
 
     // MARK: - Pay Recalculation Logic
@@ -388,16 +387,18 @@ struct DateStat: View {
     let title: String
     @Binding var date: Date
     @State private var showPicker = false
+    @ScaledMetric(relativeTo: .caption2) private var headerSize: CGFloat = 8
+    @ScaledMetric(relativeTo: .body) private var textSize: CGFloat = 15
     
     var body: some View {
         VStack(spacing: 1) {
             Text(title)
-                .font(.system(size: 8, weight: .black))
+                .font(.system(size: headerSize, weight: .black))
                 .foregroundStyle(.secondary.opacity(0.6))
                 .textCase(.uppercase)
             
             Text(date.formatted(date: .omitted, time: .shortened))
-                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .font(.system(size: textSize, weight: .bold, design: .rounded))
                 .foregroundStyle(.primary)
         }
         .contentShape(Rectangle())
@@ -459,12 +460,13 @@ struct EarningsRow: View {
     let isExpense: Bool
     var icon: String? = nil
     var iconColor: Color? = nil
+    @ScaledMetric(relativeTo: .caption) private var rowIconSize: CGFloat = 14
     
     var body: some View {
         HStack(spacing: 12) {
             if let icon = icon {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: rowIconSize, weight: .bold))
                     .foregroundStyle(iconColor ?? .secondary)
                     .frame(width: 20)
             }

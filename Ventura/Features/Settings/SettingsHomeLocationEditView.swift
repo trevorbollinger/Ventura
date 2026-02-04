@@ -25,6 +25,8 @@ struct SettingsHomeLocationEditView: View {
     @State private var isSearching = false
     @State private var searchTask: Task<Void, Never>? = nil
 
+    @ScaledMetric(relativeTo: .title3) private var iconPickerSize: CGFloat = 20
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -63,7 +65,7 @@ struct SettingsHomeLocationEditView: View {
                                     .glassModifier(in: RoundedRectangle(cornerRadius: 200))
 
                                 Image(systemName: icon)
-                                    .font(.system(size: 20, weight: .semibold))
+                                    .font(.system(size: iconPickerSize, weight: .semibold))
                                     .foregroundStyle(isSelected ? .white : .primary)
                                 
                             }

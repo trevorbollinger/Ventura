@@ -22,8 +22,8 @@ struct StatsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: spacing) {
-                    // Subtitle
-                    Text(timeframeSubtitle)
+                    // Subtitle (Date Range)
+                    Text(dateRangeText)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -81,7 +81,7 @@ struct StatsView: View {
                     }
                 }
             }
-            .navigationTitle("Stats")
+            .navigationTitle("Analytics")
             .background(Color(.systemGroupedBackground))
         }
     }
@@ -115,22 +115,33 @@ struct StatsView: View {
         let now = Date()
         
         return allSessions.filter { session in
-            guard let end = session.endTimestamp else { return false } // Only count completed sessions
+            guard let end = session.endTimestamp else { return false }
             
-            let days: Int
+            let helper = DateRangeHelper.shared
+            
             switch selectedTimeframe {
-            case .oneDay: days = 1
-            case .sevenDays: days = 7
-            case .twoWeeks: days = 14
-            case .fiveWeeks: days = 35
-            case .thirteenWeeks: days = 91
-            case .fiftyTwoWeeks: days = 364
-            case .all: return true
+            case .oneDay:
+                return Calendar.current.isDateInToday(end)
+            case .sevenDays:
+                // "This Week" - Start of current week
+                return end >= helper.startOfCurrentWeek
+            case .twoWeeks:
+                // "2 Weeks" - This week + Last week
+                let start = helper.startOfWeeksAgo(1)
+                return end >= start
+            case .fiveWeeks:
+                // "5 Weeks" - This week + Last 4 weeks
+                let start = helper.startOfWeeksAgo(4)
+                return end >= start
+            case .thirteenWeeks:
+                let start = helper.startOfWeeksAgo(12)
+                return end >= start
+            case .fiftyTwoWeeks:
+                let start = helper.startOfWeeksAgo(51)
+                return end >= start
+            case .all:
+                return true
             }
-            
-            // Rolling window: from now back 'days' days
-            let cutoffDate = calendar.date(byAdding: .day, value: -days, to: now) ?? now
-            return end >= cutoffDate
         }
     }
     
@@ -160,25 +171,44 @@ struct StatsView: View {
         return totalNetProfit / Decimal(totalMiles)
     }
     
-    var timeframeSubtitle: String {
+    var dateRangeText: String {
         if filteredSessions.isEmpty {
-            return selectedTimeframe.rawValue
+            return "No Data"
         }
         
-        // Since sessions are sorted by startTimestamp reverse, the last one is the earliest
-        if let earliest = filteredSessions.last?.startTimestamp {
-            return "Since \(earliest.formatted(date: .abbreviated, time: .omitted))"
-        }
+        let helper = DateRangeHelper.shared
+        let now = Date()
         
-        return selectedTimeframe.rawValue
+        switch selectedTimeframe {
+        case .oneDay:
+            return now.formatted(date: .abbreviated, time: .omitted)
+        case .sevenDays:
+            return "This Week"
+        case .all:
+             if let earliest = filteredSessions.last?.startTimestamp {
+                return "Since \(earliest.formatted(date: .abbreviated, time: .omitted))"
+            }
+            return "All Time"
+        default:
+             // Get the start date of the filter
+             let start: Date
+             switch selectedTimeframe {
+             case .twoWeeks: start = helper.startOfWeeksAgo(1)
+             case .fiveWeeks: start = helper.startOfWeeksAgo(4)
+             case .thirteenWeeks: start = helper.startOfWeeksAgo(12)
+             case .fiftyTwoWeeks: start = helper.startOfWeeksAgo(51)
+             default: start = now
+             }
+             return helper.formatRange(start, now)
+        }
     }
 }
 
 // MARK: - Support Types
 
 enum Timeframe: String, CaseIterable, Identifiable {
-    case oneDay = "1D"
-    case sevenDays = "7D"
+    case oneDay = "Today"
+    case sevenDays = "Week"
     case twoWeeks = "2W"
     case fiveWeeks = "5W"
     case thirteenWeeks = "13W"

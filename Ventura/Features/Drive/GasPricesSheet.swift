@@ -1,0 +1,551 @@
+//
+//  GasPricesSheet.swift
+//  Ventura
+//
+//  Created by Trevor Bollinger on 2/3/26.
+//
+
+import CoreLocation
+import SwiftUI
+
+struct GasPricesSheet: View {
+    @ObservedObject private var gasPriceFetcher = GasPriceFetcher.shared
+    @ObservedObject private var locationTracker = LocationTracker.shared
+    @ObservedObject private var weatherManager = WeatherManager.shared
+
+    @State private var sortOption: GasSortOption = .price
+    @Environment(\.dismiss) private var dismiss
+
+    @ScaledMetric(relativeTo: .largeTitle) private var largeIconSize: CGFloat = 48
+
+    private var timeString: String {
+        guard let lastTime = gasPriceFetcher.lastFetchTime else {
+            return "Cheapest regular unleaded nearby"
+        }
+
+        let elapsed = Date().timeIntervalSince(lastTime)
+        if elapsed < 60 {
+            return "Updated just now"
+        }
+
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return
+            "Updated \(formatter.localizedString(for: lastTime, relativeTo: Date()))"
+    }
+
+    private var sortedStations: [GasStation] {
+        switch sortOption {
+        case .price:
+            return gasPriceFetcher.stations.sorted {
+                ($0.regularPrice ?? Double.infinity)
+                    < ($1.regularPrice ?? Double.infinity)
+            }
+        case .distance:
+            guard let userLoc = locationTracker.currentLocation ?? weatherManager.lastKnownLocation else {
+                return gasPriceFetcher.stations
+            }
+            return gasPriceFetcher.stations.sorted { s1, s2 in
+                let d1 = s1.distance(from: userLoc)
+                let d2 = s2.distance(from: userLoc)
+                return d1 < d2
+            }
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    // Header Section
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "fuelpump.fill")
+                                .symbolRenderingMode(.multicolor)
+                                .font(.title)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Nearby Gas Prices")
+                                    .font(.title2)
+                                    .bold()
+
+                                if let error = gasPriceFetcher.lastError {
+                                    Text(error)
+                                        .font(.caption)
+                                        .foregroundColor(.red)
+                                } else {
+                                    Text(
+                                        gasPriceFetcher.isLoading
+                                            ? "Searching for the best prices..."
+                                            : timeString
+                                    )
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            Spacer()
+                        }
+
+                        // Controls Row
+                        HStack {
+                            // Sort Picker
+                            if !gasPriceFetcher.isLoading
+                                && !gasPriceFetcher.stations.isEmpty
+                            {
+                                Menu {
+                                    Picker("Sort By", selection: $sortOption) {
+                                        ForEach(GasSortOption.allCases) {
+                                            option in
+                                            Label(
+                                                option.rawValue,
+                                                systemImage: option == .price
+                                                    ? "dollarsign.circle"
+                                                    : "location.circle"
+                                            )
+                                            .tag(option)
+                                        }
+                                    }
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(
+                                            systemName: sortOption == .price
+                                                ? "dollarsign.circle.fill"
+                                                : "location.circle.fill"
+                                        )
+                                        Text("Sort by \(sortOption.rawValue)")
+                                            .fontWeight(.semibold)
+                                        Image(systemName: "chevron.down")
+                                            .font(.caption)
+                                    }
+                                    .font(.subheadline)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .background(Color.blue.opacity(0.15))
+                                    .foregroundColor(.blue)
+                                    .clipShape(Capsule())
+
+                                }
+                                
+                            }
+
+                            Spacer()
+
+                            // Refresh Button
+                            if !gasPriceFetcher.isLoading {
+                                Button(action: refreshPrices) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "arrow.clockwise")
+                                        Text("Refresh")
+                                    }
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .background(Color.gray.opacity(0.15))
+                                    .foregroundColor(.primary)
+                                    .clipShape(Capsule())
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .padding()
+
+
+                    // Stations List
+                    VStack(spacing: 3) {
+                        if gasPriceFetcher.isLoading {
+                            ForEach(0..<5, id: \.self) { _ in
+                                SkeletonStationRow()
+                                Divider()
+                            }
+                        } else if let error = gasPriceFetcher.lastError {
+                            VStack(spacing: 12) {
+                                Image(
+                                    systemName: "exclamationmark.triangle.fill"
+                                )
+                                .font(.system(size: largeIconSize))
+                                .foregroundColor(.orange)
+
+                                Text("Couldn't load prices")
+                                    .font(.headline)
+
+                                Text(error)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+
+                                Button("Try Again", action: refreshPrices)
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 10)
+                                    .background(Color.blue)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(20)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 40)
+                        } else if gasPriceFetcher.stations.isEmpty {
+                            VStack(spacing: 12) {
+                                Image(systemName: "mappin.slash")
+                                    .font(.system(size: largeIconSize))
+                                    .foregroundColor(.gray)
+
+                                Text("No gas stations found")
+                                    .font(.headline)
+
+                                Text(
+                                    "Try refreshing or moving to a different area"
+                                )
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 40)
+                        } else {
+                            ForEach(sortedStations.prefix(20)) { station in
+                                StationRow(
+                                    station: station,
+                                    userLocation: locationTracker
+                                        .currentLocation ?? weatherManager.lastKnownLocation
+                                )
+
+                                if station.id
+                                    != sortedStations.prefix(20).last?.id
+                                {
+                                    Divider()
+                                        .padding(.leading, 64)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 5)
+
+            }
+            .navigationTitle("Gas Prices")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .onAppear {
+            // Fetch gas prices if needed
+            if let location = locationTracker.currentLocation ?? weatherManager.lastKnownLocation {
+                gasPriceFetcher.fetchGasPrices(
+                    latitude: location.coordinate.latitude,
+                    longitude: location.coordinate.longitude
+                )
+            }
+        }
+    }
+
+    private func refreshPrices() {
+        if let location = locationTracker.currentLocation ?? weatherManager.lastKnownLocation {
+            gasPriceFetcher.fetchGasPrices(
+                latitude: location.coordinate.latitude,
+                longitude: location.coordinate.longitude,
+                force: true
+            )
+        }
+    }
+}
+
+// MARK: - Station Row
+private struct StationRow: View {
+    let station: GasStation
+    let userLocation: CLLocation?
+
+    @ScaledMetric(relativeTo: .caption) private var smallIconSize: CGFloat = 10
+    @ScaledMetric(relativeTo: .caption) private var mediumIconSize: CGFloat = 11
+    @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 16
+    @ScaledMetric(relativeTo: .title3) private var priceSize: CGFloat = 22
+
+    private var distanceText: String? {
+        guard let userLoc = userLocation,
+            let lat = station.latitude,
+            let lon = station.longitude
+        else { return nil }
+
+        let stationLoc = CLLocation(latitude: lat, longitude: lon)
+        let distanceMeters = userLoc.distance(from: stationLoc)
+        let distanceMiles = distanceMeters / 1609.34
+
+        if distanceMiles < 0.1 {
+            return "< 0.1 mi"
+        } else if distanceMiles < 10 {
+            return String(format: "%.1f mi", distanceMiles)
+        } else {
+            return String(format: "%.0f mi", distanceMiles)
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Brand Logo
+            ZStack {
+                if let url = station.brandLogoUrl {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
+                            Circle().fill(Color.gray.opacity(0.2))
+                        case .success(let image):
+                            image.resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .padding(6)
+                        case .failure:
+                            Image(systemName: "fuelpump")
+                                .font(.system(size: iconSize))
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                } else {
+                    Image(systemName: "fuelpump")
+                        .font(.system(size: iconSize))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 48, height: 48)
+            .background(Color(.tertiarySystemBackground))
+            .clipShape(Circle())
+
+            // Station Details
+            VStack(alignment: .leading, spacing: 4) {
+                Text(station.name ?? "Gas Station")
+                    .font(.body)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.primary)
+
+                Text(station.formattedAddress)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                if let distance = distanceText {
+                    HStack(spacing: 4) {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: smallIconSize))
+                        Text(distance)
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(.tertiary)
+                }
+            }
+
+            Spacer()
+
+            // Price & Navigation
+            VStack(alignment: .trailing, spacing: 6) {
+                if let price = station.regularPrice, price > 0 {
+                    Text(String(format: "$%.2f", price))
+                        .font(
+                            .system(
+                                size: priceSize,
+                                weight: .bold,
+                                design: .rounded
+                            )
+                        )
+                        .foregroundColor(.green)
+                } else {
+                    Text("--")
+                        .font(
+                            .system(
+                                size: priceSize,
+                                weight: .bold,
+                                design: .rounded
+                            )
+                        )
+                        .foregroundColor(.secondary)
+                }
+
+                // Navigate Button
+                Button {
+                    navigateToStation()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(
+                            systemName:
+                                "arrow.trianglehead.turn.up.right.circle.fill"
+                        )
+                        .font(.system(size: mediumIconSize))
+                        Text("Navigate")
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.blue.opacity(0.15))
+                    .foregroundColor(.blue)
+                    .clipShape(Capsule())
+
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 12)
+    }
+
+    private func navigateToStation() {
+        if let lat = station.latitude, let lon = station.longitude {
+            let placeName =
+                (station.name ?? "Gas Station").addingPercentEncoding(
+                    withAllowedCharacters: .urlQueryAllowed
+                ) ?? "Gas+Station"
+            let urlString = "maps://?q=\(placeName)&ll=\(lat),\(lon)"
+
+            if let url = URL(string: urlString) {
+                UIApplication.shared.open(url)
+            }
+        } else {
+            let encodedAddress =
+                station.formattedAddress.addingPercentEncoding(
+                    withAllowedCharacters: .urlQueryAllowed
+                ) ?? ""
+            let urlString = "maps://?q=\(encodedAddress)"
+
+            if let url = URL(string: urlString) {
+                UIApplication.shared.open(url)
+            }
+        }
+    }
+}
+
+// MARK: - Skeleton Row
+private struct SkeletonStationRow: View {
+    @State private var opacity: Double = 0.3
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(Color.gray.opacity(opacity))
+                .frame(width: 48, height: 48)
+
+            VStack(alignment: .leading, spacing: 6) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.gray.opacity(opacity))
+                    .frame(width: 140, height: 16)
+
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.gray.opacity(opacity))
+                    .frame(width: 200, height: 12)
+
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.gray.opacity(opacity))
+                    .frame(width: 60, height: 10)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 6) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.gray.opacity(opacity))
+                    .frame(width: 60, height: 24)
+
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.gray.opacity(opacity))
+                    .frame(width: 80, height: 18)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 12)
+        .onAppear {
+            withAnimation(
+                .easeInOut(duration: 1.0).repeatForever(autoreverses: true)
+            ) {
+                opacity = 0.1
+            }
+        }
+    }
+}
+
+// MARK: - Preview
+#Preview {
+    PreviewHelper.configureGasPreview()
+
+    struct PreviewWrapper: View {
+        @State private var showSheet = true
+
+        var body: some View {
+            Button("Show Gas Prices") {
+                showSheet = true
+            }
+            .sheet(isPresented: $showSheet) {
+                GasPricesSheet()
+                    .presentationDetents([.fraction(0.58), .fraction(0.95)])
+            }
+        }
+    }
+
+    return PreviewWrapper()
+}
+
+#Preview("Loading") {
+    PreviewHelper.configureGasPreview(stations: [], isLoading: true)
+
+    struct PreviewWrapper: View {
+        @State private var showSheet = true
+
+        var body: some View {
+            Button("Show Gas Prices") {
+                showSheet = true
+            }
+            .sheet(isPresented: $showSheet) {
+                GasPricesSheet()
+                    .presentationDetents([.fraction(0.4), .fraction(0.95)])
+            }
+        }
+    }
+
+    return PreviewWrapper()
+}
+
+#Preview("Error") {
+    PreviewHelper.configureGasPreview(stations: [], error: "Connection failed")
+
+    struct PreviewWrapper: View {
+        @State private var showSheet = true
+
+        var body: some View {
+            Button("Show Gas Prices") {
+                showSheet = true
+            }
+            .sheet(isPresented: $showSheet) {
+                GasPricesSheet()
+                    .presentationDetents([.fraction(0.4), .fraction(0.95)])
+            }
+        }
+    }
+
+    return PreviewWrapper()
+}
+
+#Preview("Empty") {
+    PreviewHelper.configureGasPreview(stations: [])
+
+    struct PreviewWrapper: View {
+        @State private var showSheet = true
+
+        var body: some View {
+            Button("Show Gas Prices") {
+                showSheet = true
+            }
+            .sheet(isPresented: $showSheet) {
+                GasPricesSheet()
+                    .presentationDetents([.fraction(0.4), .fraction(0.95)])
+            }
+        }
+    }
+
+    return PreviewWrapper()
+}

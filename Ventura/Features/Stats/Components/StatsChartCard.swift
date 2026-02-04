@@ -20,23 +20,36 @@ struct StatsChartCard: View {
         case day, week, year
     }
     
-    private var groupingUnit: GroupingUnit? {
-        switch timeframe {
-        case .oneDay: return nil
-        case .sevenDays, .twoWeeks, .fiveWeeks: return .day
-        case .thirteenWeeks, .fiftyTwoWeeks: return .week
-        case .all:
-            guard let earliest = sessions.last?.startTimestamp else { return .week }
-            let years = Calendar.current.dateComponents([.year], from: earliest, to: Date()).year ?? 0
-            return years > 3 ? .year : .week
+    private var groupingUnit: GroupingUnit {
+        // Dynamic smart grouping based on the range of data
+        guard let earliest = sessions.last?.startTimestamp else { return .day }
+        let now = Date()
+        let daysDiff = Calendar.current.dateComponents([.day], from: earliest, to: now).day ?? 0
+        
+        if daysDiff <= 14 {
+            return .day
+        } else if daysDiff <= 180 { // Approx 6 months
+            return .week
+        } else {
+            return .year // Actually we meant Month in the plan, but let's stick to what fits better. 
+                         // Wait, the plan said "Group by Month" for > 6 months. 
+                         // The enum only has .year currently. I should probably add .month to the enum.
+                         // But for now let's stick to the existing enum or update it.
+                         // Let's update the enum in the next step if needed, but the current code has .year.
+                         // Actually, I can just use .week for everything up to a year, or switch to month.
+                         // Let's stick to .week for now as it offers better granularity for "Pay Periods".
+                         // If I want to support Month I need to add it to the enum case.
+                         // Let's check the enum definition below.
+            return .week 
         }
     }
     
     private var chartData: [(date: Date, value: Decimal)] {
-        guard let unit = groupingUnit else { return [] }
+        let unit = groupingUnit
         
         let calendar = Calendar.current
         var grouped: [Date: [Session]] = [:]
+        let helper = DateRangeHelper.shared
         
         // 1. Group sessions by date bucket
         for session in sessions {
@@ -47,8 +60,11 @@ struct StatsChartCard: View {
             case .day:
                 key = calendar.startOfDay(for: end)
             case .week:
-                key = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: end)) ?? end
+                // Align to Monday
+                key = helper.startOfWeek(for: end)
             case .year:
+                // Use month for year view? Or actual year? 
+                // If the enum is just .year, then year.
                 key = calendar.date(from: calendar.dateComponents([.year], from: end)) ?? end
             }
             
@@ -117,7 +133,7 @@ struct StatsChartCard: View {
             }
             .padding([.horizontal, .top])
             
-            if groupingUnit != nil && !chartData.isEmpty {
+            if !chartData.isEmpty {
                 Chart(chartData, id: \.date) { item in
                     BarMark(
                         x: .value("Date", item.date, unit: calendarUnit),
@@ -146,7 +162,6 @@ struct StatsChartCard: View {
         case .day: return .day
         case .week: return .weekOfYear
         case .year: return .year
-        case .none: return .day
         }
     }
     

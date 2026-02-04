@@ -44,6 +44,7 @@ final class LiveActivityManager {
             totalEarnings: NSDecimalNumber(decimal: session.grossEarnings).doubleValue,
             netProfit: NSDecimalNumber(decimal: session.netProfit).doubleValue,
             netHourlyProfit: NSDecimalNumber(decimal: session.earningsPerHour).doubleValue,
+            netPerMile: NSDecimalNumber(decimal: session.netPerMile).doubleValue,
             deliveryCount: session.deliveriesCount,
             totalMiles: session.totalMiles,
             lastUpdated: Date()
@@ -70,6 +71,7 @@ final class LiveActivityManager {
             totalEarnings: NSDecimalNumber(decimal: session.grossEarnings).doubleValue,
             netProfit: NSDecimalNumber(decimal: session.netProfit).doubleValue,
             netHourlyProfit: NSDecimalNumber(decimal: session.earningsPerHour).doubleValue,
+            netPerMile: NSDecimalNumber(decimal: session.netPerMile).doubleValue,
             deliveryCount: session.deliveriesCount,
             totalMiles: session.totalMiles,
             lastUpdated: Date()
@@ -91,6 +93,7 @@ final class LiveActivityManager {
                 totalEarnings: activity.content.state.totalEarnings,
                 netProfit: activity.content.state.netProfit,
                 netHourlyProfit: activity.content.state.netHourlyProfit,
+                netPerMile: activity.content.state.netPerMile,
                 deliveryCount: activity.content.state.deliveryCount,
                 totalMiles: activity.content.state.totalMiles,
                 lastUpdated: Date()

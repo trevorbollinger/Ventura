@@ -5,7 +5,6 @@
 //  Created by Trevor Bollinger on 1/30/26.
 //
 
-
 import ActivityKit
 import SwiftUI
 import WidgetKit
@@ -24,10 +23,10 @@ struct SessionInfoLiveActivityLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.trailing) {
                     ExpandedView(region: .trailing, context: context)
                 }
-                //
-                //                DynamicIslandExpandedRegion(.center) {
-                //                    ExpandedView(region: .center, context: context)
-                //                }
+
+                DynamicIslandExpandedRegion(.center) {
+                    ExpandedView(region: .center, context: context)
+                }
 
                 DynamicIslandExpandedRegion(.bottom) {
                     ExpandedView(region: .bottom, context: context)
@@ -50,66 +49,24 @@ struct SessionActivityView: View {
     let context: ActivityViewContext<SessionActivityAttributes>
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading) {
-                    Text("Delivery Session")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-
-                    Text(context.attributes.startTime, style: .timer)
-                        .font(
-                            .system(size: 32, weight: .bold, design: .rounded)
-                        )
-                        .monospacedDigit()
-                        .foregroundStyle(.orange)
-                }
-
-                Spacer()
-
-                VStack(alignment: .trailing) {
-                    Text("Earnings")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-
-                    Text(
-                        context.state.netProfit,
-                        format: .currency(code: "USD")
-                    )
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundStyle(.green)
-                }
-            }
-            .padding(.bottom, 12)
-
+        VStack(spacing: 8) {
+            LiveActivityHeader(
+                title: "Tracking Session",
+                startTime: context.attributes.startTime
+            )
             Divider()
-                .background(.white.opacity(0.2))
-                .padding(.bottom, 12)
-
-            HStack {
-                Text("\(context.state.totalMiles, specifier: "%.1f") mi")
-                    .fontWeight(.semibold)
-
-                    .font(.subheadline)
-
-                Spacer()
-
-                Text("\(context.state.netHourlyProfit, format: .currency(code: "USD"))/hr")
-                    .fontWeight(.semibold)
-                    .font(.subheadline)
-            }
-            .foregroundStyle(.secondary)
+            LiveActivityProfitHero(profit: context.state.netProfit)
+            LiveActivityStatsRow(state: context.state)
         }
-        .padding()
-        .background(Color(UIColor.systemBackground))
+        .padding(12)
     }
 }
 
 // MARK: - Expanded
 
 struct ExpandedView: View {
+    @ScaledMetric(relativeTo: .caption) private var headerSize: CGFloat = 12
+
     enum Region {
         case leading, trailing, center, bottom
     }
@@ -120,67 +77,168 @@ struct ExpandedView: View {
     var body: some View {
         switch region {
         case .leading:
-            // Miles
 
-            Text("\(context.state.totalMiles, specifier: "%.1f") mi")
-                .font(.subheadline)
-                .fontWeight(.bold)
-                .monospacedDigit()
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity, alignment: .center)
-
+            Text(
+                "Tracking"
+            )
+            .monospacedDigit()
+            .lineLimit(nil)
+            .multilineTextAlignment(.leading)
+            .padding(.leading, 10)
+//            .frame(maxWidth: .infinity, alignment: .leading)
+            .font(.system(size: headerSize, weight: .bold))
+            .foregroundStyle(.secondary)
+            .textCase(.uppercase)
+            
         case .trailing:
-            // 1. Timer (Large, Centered)
-            Text(context.attributes.startTime, style: .timer)
-                .font(.subheadline)
-                .fontWeight(.bold)
+            HStack {
+                Spacer()
+                Text(
+                    timerInterval: context.attributes
+                        .startTime...Date.distantFuture,
+                    countsDown: false
+                )
                 .monospacedDigit()
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity, alignment: .center)
+//                .padding(.trailing, 8)
+                .lineLimit(nil)
+                .multilineTextAlignment(.trailing)
+//                .frame(maxWidth: .infinity, alignment: .trailing)
+                .font(.system(size: headerSize, weight: .bold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                Spacer()
+
+            }
+            
         case .center:
-            // Empty as requested
-            Spacer()
+            LiveActivityProfitHero(profit: context.state.netProfit)
 
         case .bottom:
+            VStack {
+                Spacer()
+                LiveActivityStatsRow(state: context.state)
 
-            // 2. Stats Row (Miles, Net, Hourly)
-            HStack(spacing: 20) {
-
-                // Net Profit
-                VStack(spacing: 2) {
-                    Image(systemName: "dollarsign.circle.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.green)
-                    Text(
-                        context.state.netProfit,
-                        format: .currency(code: "USD")
-                    )
-                    .font(.subheadline)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.green)
-                }
-
-                // Hourly
-                VStack(spacing: 2) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    HStack(spacing: 0) {
-                        Text(
-                            context.state.netHourlyProfit,
-                            format: .currency(code: "USD")
-                        )
-                        .font(.subheadline)
-                        .fontWeight(.bold)
-                        Text("/h")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
             }
+        }
+    }
+}
 
+// MARK: - Shared Components
+
+struct LiveActivityHeader: View {
+    let title: String
+    let startTime: Date
+    @ScaledMetric(relativeTo: .caption) private var headerSize: CGFloat = 12
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(
+                timerInterval: startTime...Date.distantFuture,
+                countsDown: false
+            )
+            .monospacedDigit()
+        }
+        .padding(.leading, 2)
+        .font(.system(size: headerSize, weight: .bold))
+        .foregroundStyle(.secondary)
+        .textCase(.uppercase)
+    }
+}
+
+struct LiveActivityProfitHero: View {
+    let profit: Double
+    @ScaledMetric(relativeTo: .largeTitle) private var profitSize: CGFloat = 36
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(profit, format: .currency(code: "USD"))
+                .font(
+                    .system(size: profitSize, weight: .black, design: .rounded)
+                )
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.green, .mint],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .contentTransition(.numericText())
+                .shadow(color: .green.opacity(0.1), radius: 10, x: 0, y: 5)
+        }
+    }
+}
+
+struct LiveActivityStatsRow: View {
+    let state: SessionActivityAttributes.ContentState
+
+    var body: some View {
+        HStack(alignment: .top) {
+            Spacer()
+            LiveActivityStatItem(
+                icon: "car.fill",
+                color: Color("MileageColor"),
+                label: "MILES",
+                value: String(format: "%.1f", state.totalMiles)
+            )
+            Spacer()
+            LiveActivityStatItem(
+                icon: "briefcase.fill",
+                color: .blue,
+                label: "DELIV.",
+                value: "\(state.deliveryCount)"
+            )
+            Spacer()
+            LiveActivityStatItem(
+                icon: "hourglass",
+                color: Color("TipsColor"),
+                label: "/ HOUR",
+                value: state.netHourlyProfit.formatted(.currency(code: "USD"))
+            )
+            Spacer()
+            LiveActivityStatItem(
+                icon: "road.lanes",
+                color: Color("FuelColor"),
+                label: "/ MILE",
+                value: state.netPerMile.formatted(.currency(code: "USD"))
+            )
+            Spacer()
+        }
+    }
+}
+
+struct LiveActivityStatItem: View {
+    let icon: String
+    let color: Color
+    let label: String
+    let value: String
+
+    @ScaledMetric(relativeTo: .caption) private var iconSize: CGFloat = 11
+    @ScaledMetric(relativeTo: .subheadline) private var statValueSize: CGFloat =
+        15
+    @ScaledMetric(relativeTo: .caption2) private var statLabelSize: CGFloat = 9
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: iconSize, weight: .bold))
+                .foregroundStyle(color)
+
+            Text(value)
+                .font(
+                    .system(
+                        size: statValueSize,
+                        weight: .bold,
+                        design: .rounded
+                    )
+                )
+                .foregroundStyle(.primary)
+                .contentTransition(.numericText())
+
+            Text(label)
+                .font(.system(size: statLabelSize, weight: .black))
+                .foregroundStyle(.secondary.opacity(0.6))
         }
     }
 }
@@ -198,18 +256,31 @@ struct CompactView: View {
     var body: some View {
         switch region {
         case .leading:
-            Text("\(context.state.netHourlyProfit, format: .currency(code: "USD"))/hr")
-                .font(.caption)
+            Text("00:00:00")
+                .font(.system(.caption, design: .rounded))
                 .fontWeight(.bold)
-                .foregroundStyle(.green)
-//                .padding(.leading, 4)
+                .monospacedDigit()
+                .hidden()
+                .overlay(alignment: .trailing) {
+                    Text(
+                        timerInterval: context.attributes.startTime...Date.distantFuture,
+                        countsDown: false
+                    )
+                    .monospacedDigit()
+                    .font(.system(.caption, design: .rounded))
+                    .fontWeight(.bold)
+                    .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.leading, 5)
 
         case .trailing:
             Text(context.state.netProfit, format: .currency(code: "USD"))
-                .font(.caption)
+                .font(.system(.caption, design: .rounded))
                 .fontWeight(.bold)
                 .foregroundStyle(.green)
-//                .padding(.trailing, 4)
+                .contentTransition(.numericText())
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
@@ -220,8 +291,12 @@ struct MinimalView: View {
     let context: ActivityViewContext<SessionActivityAttributes>
 
     var body: some View {
-        Image(systemName: "car.fill")
-            .foregroundStyle(.orange)
+        VStack(spacing: 0) {
+            Text(context.state.netProfit, format: .currency(code: "USD").precision(.fractionLength(0)))
+                .font(.system(size: 11, weight: .black, design: .rounded))
+                .foregroundStyle(.green)
+                .contentTransition(.numericText())
+        }
     }
 }
 
@@ -239,6 +314,7 @@ extension SessionActivityAttributes.ContentState {
             totalEarnings: 32.50,
             netProfit: 28.50,
             netHourlyProfit: 18.00,
+            netPerMile: 2.30,
             deliveryCount: 3,
             totalMiles: 12.4,
             lastUpdated: Date()

@@ -7,6 +7,7 @@ struct SessionStatsCard<Footer: View>: View {
     let timelineDate: Date
     let editable: Bool
     let showHomeStats: Bool
+    @ScaledMetric(relativeTo: .largeTitle) private var profitSize: CGFloat = 52
     @State private var showDeliveriesPicker = false
     @ViewBuilder let footer: Footer
 
@@ -50,7 +51,7 @@ struct SessionStatsCard<Footer: View>: View {
 
                     Text(
                         isLive
-                            ? "" : (session != nil ? "Sunday, Feb 1, 2026" : "")
+                            ? "" : (session?.startTimestamp.formatted(Date.FormatStyle().weekday(.wide).month(.abbreviated).day().year()) ?? "")
                     )
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
@@ -66,7 +67,7 @@ struct SessionStatsCard<Footer: View>: View {
                     session?.netProfit.formatted(.currency(code: "USD"))
                         ?? "$0.00"
                 )
-                .font(.system(size: 52, weight: .black, design: .rounded))
+                .font(.system(size: profitSize, weight: .black, design: .rounded))
                 .foregroundStyle(
                     LinearGradient(
                         colors: [.green, .mint],
@@ -272,15 +273,7 @@ struct SessionStatsCard<Footer: View>: View {
     }
 
     private func formatSeconds(_ seconds: Double) -> String {
-        let h = Int(seconds) / 3600
-        let m = (Int(seconds) % 3600) / 60
-        let s = Int(seconds) % 60
-
-        if h > 0 {
-            return String(format: "%dh %dm", h, m)
-        } else {
-            return String(format: "%dm %ds", m, s)
-        }
+        return TimeFormatter.formatDuration(seconds)
     }
 }
 

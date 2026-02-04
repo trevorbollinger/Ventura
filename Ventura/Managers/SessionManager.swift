@@ -187,7 +187,11 @@ class SessionManager: ObservableObject {
 
         
         // --- 1. Update Time Buckets (Stats Only) ---
-        // This tracks WHERE you are (Home vs Away), but does NOT determine your Pay Rate.
+        // Refined Logic (User Request):
+        // Strict check: Only count as "Home Time" if we are definitively INSIDE the home circle.
+        // Otherwise (Outside, No Home Set, No GPS), count as "Time Away" (Driving/Active).
+        
+        var isIndeedAtHome = false
         
         if let lat = userSettings.homeLatitude,
            let lon = userSettings.homeLongitude,
@@ -197,16 +201,14 @@ class SessionManager: ObservableObject {
             let distanceToHome = currentLocation.distance(from: homeLocation)
             
             if distanceToHome <= userSettings.homeRadius {
-                // INSIDE GEOFENCE -> Passive
-                session.timeAtHome += timePassed
-            } else {
-                // OUTSIDE GEOFENCE -> Active (Driving)
-                session.timeAway += timePassed
+                isIndeedAtHome = true
             }
-        } else {
-            // Default to Away stats if no home set or no GPS
-            // FALLBACK: Default to PASSIVE (Home) to prevent wage spikes while initializing.
+        }
+        
+        if isIndeedAtHome {
             session.timeAtHome += timePassed
+        } else {
+            session.timeAway += timePassed
         }
 
         // Debugging

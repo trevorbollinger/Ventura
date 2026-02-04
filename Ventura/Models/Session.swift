@@ -191,6 +191,11 @@ final class Session {
         return calculatedRate
     }
     
+    var netPerMile: Decimal {
+        guard totalMiles > 0 else { return 0 }
+        return netProfit / Decimal(totalMiles)
+    }
+    
     // MARK: - Session Combining Support
     
     /// Encapsulates all rate-related fields for easy comparison
@@ -292,14 +297,6 @@ final class Session {
     func durationString(at date: Date = Date()) -> String {
         let end = endTimestamp ?? date
         let diff = max(0, end.timeIntervalSince(startTimestamp))
-        let hours = Int(diff) / 3600
-        let minutes = (Int(diff) % 3600) / 60
-        let seconds = Int(diff) % 60
-        
-        if hours > 0 {
-            return String(format: "%dh %dm", hours, minutes)
-        } else {
-            return String(format: "%dm %ds", minutes, seconds)
-        }
+        return TimeFormatter.formatDuration(diff)
     }
 }

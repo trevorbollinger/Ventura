@@ -15,6 +15,7 @@ struct SessionActivityAttributes: ActivityAttributes {
         var totalEarnings: Double
         var netProfit: Double
         var netHourlyProfit: Double
+        var netPerMile: Double
         var deliveryCount: Int
         var totalMiles: Double
         var lastUpdated: Date
