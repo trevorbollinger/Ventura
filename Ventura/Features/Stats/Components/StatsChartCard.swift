@@ -14,6 +14,8 @@ struct StatsChartCard: View {
     let value: String
     let sessions: [Session]
     let timeframe: Timeframe
+    let currencyCode: String
+    let distanceUnit: DistanceUnit
     
     // Helper enum for clarity
     enum GroupingUnit {
@@ -28,19 +30,10 @@ struct StatsChartCard: View {
         
         if daysDiff <= 14 {
             return .day
-        } else if daysDiff <= 180 { // Approx 6 months
+        } else if daysDiff <= 180 {
             return .week
         } else {
-            return .year // Actually we meant Month in the plan, but let's stick to what fits better. 
-                         // Wait, the plan said "Group by Month" for > 6 months. 
-                         // The enum only has .year currently. I should probably add .month to the enum.
-                         // But for now let's stick to the existing enum or update it.
-                         // Let's update the enum in the next step if needed, but the current code has .year.
-                         // Actually, I can just use .week for everything up to a year, or switch to month.
-                         // Let's stick to .week for now as it offers better granularity for "Pay Periods".
-                         // If I want to support Month I need to add it to the enum case.
-                         // Let's check the enum definition below.
-            return .week 
+            return .year
         }
     }
     
@@ -60,11 +53,8 @@ struct StatsChartCard: View {
             case .day:
                 key = calendar.startOfDay(for: end)
             case .week:
-                // Align to Monday
                 key = helper.startOfWeek(for: end)
             case .year:
-                // Use month for year view? Or actual year? 
-                // If the enum is just .year, then year.
                 key = calendar.date(from: calendar.dateComponents([.year], from: end)) ?? end
             }
             
@@ -80,7 +70,12 @@ struct StatsChartCard: View {
                 value = sessions.reduce(0) { $0 + $1.netProfit }
                 
             case .miles:
-                value = Decimal(sessions.reduce(0) { $0 + $1.totalMiles })
+                let miles = sessions.reduce(0) { $0 + $1.totalMiles }
+                if distanceUnit == .kilometers {
+                    value = Decimal(miles * 1.60934)
+                } else {
+                    value = Decimal(miles)
+                }
                 
             case .hours:
                 value = sessions.reduce(0) { $0 + $1.durationInHours }
@@ -96,7 +91,13 @@ struct StatsChartCard: View {
             case .dollarsPerMile:
                 let totalProfit = sessions.reduce(0) { $0 + $1.netProfit }
                 let totalMiles = sessions.reduce(0) { $0 + $1.totalMiles }
-                value = totalMiles > 0 ? totalProfit / Decimal(totalMiles) : 0
+                let perMile = totalMiles > 0 ? totalProfit / Decimal(totalMiles) : 0
+                
+                if distanceUnit == .kilometers {
+                    value = perMile / 1.60934
+                } else {
+                    value = perMile
+                }
             }
             
             return (date, value)
@@ -108,7 +109,7 @@ struct StatsChartCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
-            HStack (alignment: .top){
+            HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(type.title)
                         .font(.caption)
@@ -129,7 +130,6 @@ struct StatsChartCard: View {
                     .padding(8)
                     .background(type.color.opacity(0.1))
                     .clipShape(Circle())
-                
             }
             .padding([.horizontal, .top])
             
@@ -148,7 +148,6 @@ struct StatsChartCard: View {
                 .frame(height: 200)
                 .padding()
             } else {
-                // Placeholder or Empty State if no chart data available
                 ContentUnavailableView("No Chart Data", systemImage: "chart.bar.xaxis")
                     .frame(height: 200)
             }
@@ -170,7 +169,6 @@ struct StatsChartCard: View {
         case .day: return .dateTime.weekday()
         case .week: return .dateTime.month().day()
         case .year: return .dateTime.year()
-        default: return .dateTime.month().day()
         }
     }
 }
@@ -178,29 +176,27 @@ struct StatsChartCard: View {
 #Preview {
     let container = PreviewHelper.makeContainer()
     
-    // Create mock settings for the preview sessions
     let mockSettings = UserSettings()
     mockSettings.hourlyWage = 15.0
     mockSettings.reimbursement = 0.30
     mockSettings.mpg = 25.0
     
-    // Create preview sessions
     let s1 = Session(startTimestamp: Date().addingTimeInterval(-86400 * 1), userSettings: mockSettings)
     s1.endTimestamp = Date().addingTimeInterval(-86400 * 1 + 3600)
     s1.manualStartOdometer = 100
-    s1.manualEndOdometer = 110 // 10 miles
-    s1.tips = [20.0] // total profit = ~15 + 3 + 20 - gas
+    s1.manualEndOdometer = 110
+    s1.tips = [20.0]
     
     let s2 = Session(startTimestamp: Date().addingTimeInterval(-86400 * 2), userSettings: mockSettings)
     s2.endTimestamp = Date().addingTimeInterval(-86400 * 2 + 3600)
     s2.manualStartOdometer = 200
-    s2.manualEndOdometer = 215 // 15 miles
+    s2.manualEndOdometer = 215
     s2.tips = [30.0]
     
     let s3 = Session(startTimestamp: Date().addingTimeInterval(-86400 * 3), userSettings: mockSettings)
     s3.endTimestamp = Date().addingTimeInterval(-86400 * 3 + 3600)
     s3.manualStartOdometer = 300
-    s3.manualEndOdometer = 320 // 20 miles
+    s3.manualEndOdometer = 320
     s3.tips = [40.0]
 
     return ZStack {
@@ -211,15 +207,19 @@ struct StatsChartCard: View {
                     type: .netProfit,
                     value: "$1,204.50",
                     sessions: [s1, s2, s3],
-                    timeframe: .sevenDays
+                    timeframe: .sevenDays,
+                    currencyCode: "USD",
+                    distanceUnit: .miles
                 )
-                .frame(height: 300) // Ensure it has height context if needed
+                .frame(height: 300)
                 
                 StatsChartCard(
                     type: .miles,
                     value: "254.3 mi",
                     sessions: [],
-                    timeframe: .sevenDays
+                    timeframe: .sevenDays,
+                    currencyCode: "USD",
+                    distanceUnit: .miles
                 )
             }
             .padding()

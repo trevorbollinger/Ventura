@@ -10,6 +10,7 @@ import SwiftData
 
 struct PreviousSessionCard: View {
     let session: Session?
+    let settings: UserSettings
     
     @ScaledMetric(relativeTo: .title) private var profitSize: CGFloat = 32
     @ScaledMetric(relativeTo: .caption) private var iconSize: CGFloat = 10
@@ -37,7 +38,7 @@ struct PreviousSessionCard: View {
             
             if let session = session {
                 // Profit Display
-                Text(session.netProfit.formatted(.currency(code: "USD")))
+                Text(session.netProfit.formatted(.currency(code: session.currencyCode)))
                     .font(.system(size: profitSize, weight: .black, design: .rounded))
                     .foregroundStyle(
                         LinearGradient(
@@ -68,8 +69,8 @@ struct PreviousSessionCard: View {
                     CompactStatItem(
                         icon: "car.fill",
                         color: Color("MileageColor"),
-                        label: "Miles",
-                        value: String(format: "%.1f", session.totalMiles),
+                        label: settings.distanceUnit == .kilometers ? "Km" : "Miles",
+                        value: String(format: "%.1f", settings.displayDistance(miles: session.totalMiles)),
                         iconSize: iconSize,
                         valueSize: valueSize,
                         labelSize: labelSize
@@ -156,7 +157,7 @@ struct CompactStatItem: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             
-            PreviousSessionCard(session: lastSession)
+            PreviousSessionCard(session: lastSession, settings: UserSettings())
                 .onTapGesture {
                     print("Tapped session card")
                 }
@@ -168,7 +169,7 @@ struct CompactStatItem: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             
-            PreviousSessionCard(session: nil)
+            PreviousSessionCard(session: nil, settings: UserSettings())
         }
         .padding()
     }

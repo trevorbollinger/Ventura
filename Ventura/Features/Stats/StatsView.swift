@@ -12,12 +12,68 @@ import Charts
 struct StatsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Session.startTimestamp, order: .reverse) private var allSessions: [Session]
+    @Query private var settings: [UserSettings]
     
     @State private var selectedTimeframe: Timeframe = .sevenDays
     
     let spacing = 13.0
     
+    var currentCurrencyCode: String {
+        settings.first?.currencyCode ?? "USD"
+    }
     
+    var currentDistanceUnit: DistanceUnit {
+        settings.first?.distanceUnit ?? .miles
+    }
+    
+    // ... (body remains mostly same, need to pass settings to StatsChartCard)
+    
+    // ...
+    
+    func value(for type: StatType) -> String {
+        switch type {
+        case .netProfit:
+            return totalNetProfit.formatted(.currency(code: currentCurrencyCode))
+        case .miles:
+            let dist = Measurement(value: totalMiles, unit: UnitLength.miles)
+            let converted = dist.converted(to: currentDistanceUnit.unit)
+            return converted.value.formatted(.number.precision(.fractionLength(1))) + " " + currentDistanceUnit.title
+        case .hours:
+            return totalHours.formatted(.number.precision(.fractionLength(1)))
+        case .deliveries:
+            return "\(totalDeliveries)"
+        case .hourlyProfit:
+            return avgHourlyRate.formatted(.currency(code: currentCurrencyCode))
+        case .dollarsPerMile:
+            return avgProfitPerDistance.formatted(.currency(code: currentCurrencyCode))
+        }
+    }
+    
+    // ... filtering logic ...
+    
+    // ...
+    
+    var avgHourlyRate: Decimal {
+        guard totalHours > 0 else { return 0 }
+        return totalNetProfit / totalHours
+    }
+    
+    var avgDollarsPerMile: Decimal {
+        guard totalMiles > 0 else { return 0 }
+        let profitPerMile = totalNetProfit / Decimal(totalMiles)
+        
+        if currentDistanceUnit == .kilometers {
+            // Convert $/mi -> $/km
+            // 1 mile = 1.60934 km
+            // $/km = ($/mi) / 1.60934
+            return profitPerMile / 1.60934
+        }
+        return profitPerMile
+    }
+    
+    var avgProfitPerDistance: Decimal {
+        avgDollarsPerMile // Renamed logic
+    }
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -70,7 +126,9 @@ struct StatsView: View {
                                             type: type,
                                             value: value(for: type),
                                             sessions: filteredSessions,
-                                            timeframe: selectedTimeframe
+                                            timeframe: selectedTimeframe,
+                                            currencyCode: currentCurrencyCode,
+                                            distanceUnit: currentDistanceUnit
                                         )
                                         .gridCellColumns(2) // Span both columns
                                     }
@@ -92,28 +150,7 @@ struct StatsView: View {
         return type == .dollarsPerMile
     }
     
-    func value(for type: StatType) -> String {
-        switch type {
-        case .netProfit:
-            return totalNetProfit.formatted(.currency(code: "USD"))
-        case .miles:
-            return totalMiles.formatted(.number.precision(.fractionLength(1)))
-        case .hours:
-            return totalHours.formatted(.number.precision(.fractionLength(1)))
-        case .deliveries:
-            return "\(totalDeliveries)"
-        case .hourlyProfit:
-            return avgHourlyRate.formatted(.currency(code: "USD"))
-        case .dollarsPerMile:
-            return avgDollarsPerMile.formatted(.currency(code: "USD"))
-        }
-    }
-    
-
     var filteredSessions: [Session] {
-        let calendar = Calendar.current
-        let now = Date()
-        
         return allSessions.filter { session in
             guard let end = session.endTimestamp else { return false }
             
@@ -161,15 +198,7 @@ struct StatsView: View {
         filteredSessions.reduce(0) { $0 + $1.deliveriesCount }
     }
     
-    var avgHourlyRate: Decimal {
-        guard totalHours > 0 else { return 0 }
-        return totalNetProfit / totalHours
-    }
-    
-    var avgDollarsPerMile: Decimal {
-        guard totalMiles > 0 else { return 0 }
-        return totalNetProfit / Decimal(totalMiles)
-    }
+  
     
     var dateRangeText: String {
         if filteredSessions.isEmpty {

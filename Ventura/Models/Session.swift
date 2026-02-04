@@ -32,13 +32,16 @@ final class Session {
     // These lock in the rates at the time of the session
     var hourlyWage: Double = 0.0
     var drivingWage: Double = 0.0
-    var passiveWage: Double = 0.0
+    var passiveWage: Double = 15.0 // Renamed/Adjusted if needed, keeping simple standard for now
     var perDeliveryRate: Double?
     var mileageReimbursementRate: Double = 0.0
     var vehicleMPG: Double = 0.0
     var fuelPrice: Double = 0.0
     var wageTypeRaw: String = "Hourly"
     var reimbursementTypeRaw: String = "Per Mile"
+    
+    // Localization Snapshot
+    var currencyCode: String = "USD"
     
     // --- Pay Accumulators (Computed) ---
     // These are now derived dynamically from time buckets + rates
@@ -86,6 +89,9 @@ final class Session {
         self.includeMaintenance = userSettings.includeMaintenance
         self.maintenanceCostPerMile = userSettings.maintenanceCostPerMile
         self.includeGas = userSettings.includeGas
+        
+        // Snapshot Localization (currency only - distance converts at display time)
+        self.currencyCode = userSettings.currencyCode
     }
     
     // --- Computed Properties (The Logic) ---
@@ -96,13 +102,17 @@ final class Session {
         return Decimal(seconds / 3600)
     }
     
+    /// ALWAYS returns miles, regardless of user display preference. Used for internal calculations (Gas, MPG, etc).
+    /// Views should use UserSettings.displayDistance(miles:) to convert for display.
     var totalMiles: Double {
         if let start = manualStartOdometer, let end = manualEndOdometer {
+            // Manual odometer assumed to be in miles
             return end - start
         }
-        return gpsDistanceMeters / 1609.34 // Convert meters to miles
+        return gpsDistanceMeters / 1609.34 // Meters to Miles
     }
     
+    // --- Earnings Logic ---
 
     var totalHourlyPay: Decimal {
         switch wageTypeRaw {
@@ -195,6 +205,7 @@ final class Session {
         guard totalMiles > 0 else { return 0 }
         return netProfit / Decimal(totalMiles)
     }
+    // netPerMile is canonical - views convert with UserSettings.displayPerDistance(perMile:)
     
     // MARK: - Session Combining Support
     

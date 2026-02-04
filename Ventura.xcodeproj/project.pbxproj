@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		341DF6E42F33AA7F00F099DF /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 341DF6E32F33AA7F00F099DF /* Localizable.xcstrings */; };
+		341DF6E52F33AA7F00F099DF /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 341DF6E32F33AA7F00F099DF /* Localizable.xcstrings */; };
 		34FADBB92F2AB84C00F9616C /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 342E02B32F2AB2F400BAAF32 /* WidgetKit.framework */; };
 		34FADBBA2F2AB84C00F9616C /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 342E02B52F2AB2F400BAAF32 /* SwiftUI.framework */; };
 		34FADBCB2F2AB84D00F9616C /* SessionInfoLiveActivityExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 34FADBB82F2AB84C00F9616C /* SessionInfoLiveActivityExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -38,6 +40,7 @@
 
 /* Begin PBXFileReference section */
 		341DF6E22F33A57600F099DF /* pyongyang.gpx */ = {isa = PBXFileReference; lastKnownFileType = text.xml; name = pyongyang.gpx; path = ../../../Downloads/pyongyang.gpx; sourceTree = "<group>"; };
+		341DF6E32F33AA7F00F099DF /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		342E02B32F2AB2F400BAAF32 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		342E02B52F2AB2F400BAAF32 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		3459F0C52F292B5900CEC29A /* Ventura.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Ventura.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -129,6 +132,7 @@
 			isa = PBXGroup;
 			children = (
 				341DF6E22F33A57600F099DF /* pyongyang.gpx */,
+				341DF6E32F33AA7F00F099DF /* Localizable.xcstrings */,
 				3459F0C72F292B5900CEC29A /* Ventura */,
 				34FADBBB2F2AB84C00F9616C /* SessionInfoLiveActivity */,
 				342E02B22F2AB2F400BAAF32 /* Frameworks */,
@@ -218,6 +222,7 @@
 			knownRegions = (
 				en,
 				Base,
+				es,
 			);
 			mainGroup = 3459F0BC2F292B5900CEC29A;
 			minimizedProjectReferenceProxies = 1;
@@ -237,6 +242,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				341DF6E52F33AA7F00F099DF /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -244,6 +250,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				341DF6E42F33AA7F00F099DF /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -441,6 +448,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
@@ -496,6 +504,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
 			name = Release;
 		};

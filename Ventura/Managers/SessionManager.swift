@@ -49,7 +49,11 @@ class SessionManager: ObservableObject {
             // Restore tracker distance
             locationTracker.setDistance(activeSession?.gpsDistanceMeters ?? 0)
             locationTracker.startTracking()
-            LiveActivityManager.shared.start(session: activeSession!)
+            
+            // Fetch current settings for Live Activity
+            let settingsDescriptor = FetchDescriptor<UserSettings>()
+            let userSettings = (try? modelContext.fetch(settingsDescriptor).first) ?? UserSettings()
+            LiveActivityManager.shared.start(session: activeSession!, settings: userSettings)
         }
     }
     
@@ -98,7 +102,7 @@ class SessionManager: ObservableObject {
         startTimer()
         startLocationMonitoring()
         
-        LiveActivityManager.shared.start(session: newSession)
+        LiveActivityManager.shared.start(session: newSession, settings: userSettings)
         print("✅ Session Started")
     }
     
@@ -135,7 +139,12 @@ class SessionManager: ObservableObject {
             session.deliveriesCount += 1
         }
         session.invalidateCache()
-        LiveActivityManager.shared.update(session: session)
+        
+        // Fetch current settings for Live Activity update
+        guard let context = modelContext else { return }
+        let settingsDescriptor = FetchDescriptor<UserSettings>()
+        let userSettings = (try? context.fetch(settingsDescriptor).first) ?? UserSettings()
+        LiveActivityManager.shared.update(session: session, settings: userSettings)
     }
     
     // MARK: - Logic Loop
@@ -224,7 +233,7 @@ class SessionManager: ObservableObject {
             try? context.save()
         }
         
-        LiveActivityManager.shared.update(session: session)
+        LiveActivityManager.shared.update(session: session, settings: userSettings)
     }
     
     private func processLocationUpdate(_ location: CLLocation?) {
@@ -240,7 +249,13 @@ class SessionManager: ObservableObject {
                 altitude: location.altitude
             )
             session.route.append(locationData)
-            LiveActivityManager.shared.update(session: session)
+            
+            // Fetch current settings for Live Activity
+            if let ctx = modelContext {
+                let settingsDescriptor = FetchDescriptor<UserSettings>()
+                let userSettings = (try? ctx.fetch(settingsDescriptor).first) ?? UserSettings()
+                LiveActivityManager.shared.update(session: session, settings: userSettings)
+            }
         }
     }
     

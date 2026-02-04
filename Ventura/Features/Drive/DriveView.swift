@@ -117,6 +117,7 @@ struct DriveView: View {
 
                 SessionStatsCard(
                     session: activeSession ?? lastSession,
+                    settings: settings.first ?? UserSettings(),
                     isLive: activeSession != nil,
                     timelineDate: timeline.date,
                     showHomeStats: settings.first?.homeLatitude != nil

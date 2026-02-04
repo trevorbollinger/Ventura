@@ -21,6 +21,12 @@ final class UserSettings {
     var reimbursementTypeRaw: String = "Per Mile"
     var isDebugMode: Bool = false
     
+
+    // Localization
+    var currencyCode: String = "USD"
+    var distanceUnitRaw: String = "mi"
+
+    
     // Home Location
     var homeLatitude: Double?
     var homeLongitude: Double?
@@ -52,7 +58,9 @@ final class UserSettings {
          homeAddress: String? = nil,
          homeName: String? = nil,
          homeIcon: String? = nil,
-         homeRadius: Double = 200.0) {
+         homeRadius: Double = 200.0,
+         currencyCode: String = "USD",
+         distanceUnitRaw: String = "mi") {
         self.driverTypeRaw = driverType.rawValue
         self.mpg = mpg
         self.hourlyWage = hourlyWage
@@ -72,6 +80,50 @@ final class UserSettings {
         self.homeName = homeName
         self.homeIcon = homeIcon
         self.homeRadius = homeRadius
+        self.currencyCode = currencyCode
+        self.distanceUnitRaw = distanceUnitRaw
+    }
+}
+
+enum DistanceUnit: String, CaseIterable, Identifiable {
+    case miles = "mi"
+    case kilometers = "km"
+    
+    var id: String { rawValue }
+    
+    var title: String {
+        switch self {
+        case .miles: return "Miles"
+        case .kilometers: return "Kilometers"
+        }
+    }
+    
+    var unit: UnitLength {
+        switch self {
+        case .miles: return .miles
+        case .kilometers: return .kilometers
+        }
+    }
+}
+
+enum TemperatureUnit: String, CaseIterable, Identifiable {
+    case fahrenheit = "F"
+    case celsius = "C"
+    
+    var id: String { rawValue }
+    
+    var title: String {
+        switch self {
+        case .fahrenheit: return "Fahrenheit"
+        case .celsius: return "Celsius"
+        }
+    }
+    
+    var unit: UnitTemperature {
+        switch self {
+        case .fahrenheit: return .fahrenheit
+        case .celsius: return .celsius
+        }
     }
 }
 
@@ -89,5 +141,41 @@ extension UserSettings {
     var reimbursementType: ReimbursementType {
         get { ReimbursementType(rawValue: reimbursementTypeRaw) ?? .perMile }
         set { reimbursementTypeRaw = newValue.rawValue }
+    }
+    
+    var distanceUnit: DistanceUnit {
+        get { DistanceUnit(rawValue: distanceUnitRaw) ?? .miles }
+        set { distanceUnitRaw = newValue.rawValue }
+    }
+    
+
+    
+    // MARK: - Display Helpers
+    
+    /// Convert miles to the user's current display unit
+    func displayDistance(miles: Double) -> Double {
+        if distanceUnit == .kilometers {
+            return Measurement(value: miles, unit: UnitLength.miles).converted(to: .kilometers).value
+        }
+        return miles
+    }
+    
+    /// Label for current distance unit (e.g., "mi" or "km")
+    var distanceLabel: String {
+        distanceUnit == .kilometers ? "km" : "mi"
+    }
+    
+    /// Label for per-distance rate (e.g., "/mi" or "/km")
+    var perDistanceLabel: String {
+        distanceUnit == .kilometers ? "/km" : "/mi"
+    }
+    
+    /// Convert per-mile value to per-current-unit value
+    func displayPerDistance(perMile: Double) -> Double {
+        if distanceUnit == .kilometers {
+            // $/mile to $/km: divide by 1.60934 (fewer km per $ amount)
+            return perMile / 1.60934
+        }
+        return perMile
     }
 }

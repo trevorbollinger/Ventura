@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SessionStatsCard<Footer: View>: View {
     let session: Session?
+    let settings: UserSettings
     let isLive: Bool
     let timelineDate: Date
     let editable: Bool
@@ -13,6 +14,7 @@ struct SessionStatsCard<Footer: View>: View {
 
     init(
         session: Session?,
+        settings: UserSettings,
         isLive: Bool = false,
         timelineDate: Date = Date(),
         editable: Bool = false,
@@ -20,6 +22,7 @@ struct SessionStatsCard<Footer: View>: View {
         @ViewBuilder footer: () -> Footer = { EmptyView() }
     ) {
         self.session = session
+        self.settings = settings
         self.isLive = isLive
         self.timelineDate = timelineDate
         self.editable = editable
@@ -109,9 +112,9 @@ struct SessionStatsCard<Footer: View>: View {
                     StatItem(
                         icon: "car.fill",
                         color: Color("MileageColor"),
-                        label: "Miles",
+                        label: settings.distanceUnit == .kilometers ? "Km" : "Miles",
                         value: session != nil
-                            ? String(format: "%.1f", session!.totalMiles)
+                            ? String(format: "%.1f", settings.displayDistance(miles: session!.totalMiles))
                             : "0.0"
                     )
                     Spacer()
@@ -132,7 +135,7 @@ struct SessionStatsCard<Footer: View>: View {
                         color: Color("TipsColor"),
                         label: "PER HOUR",
                         value: session?.earningsPerHour.formatted(
-                            .currency(code: "USD")
+                            .currency(code: session?.currencyCode ?? "USD")
                         ) ?? "$0.00"
                     )
                     Spacer()
@@ -141,8 +144,8 @@ struct SessionStatsCard<Footer: View>: View {
                     StatItem(
                         icon: "road.lanes",
                         color: Color("FuelColor"),
-                        label: "PER MILE",
-                        value: formattedNetPerMile
+                        label: settings.distanceUnit == .kilometers ? "PER KM" : "PER MILE",
+                        value: formattedNetPerDistance
                     )
                     Spacer()
 
@@ -164,9 +167,9 @@ struct SessionStatsCard<Footer: View>: View {
                     StatItem(
                         icon: "car.fill",
                         color: Color("MileageColor"),
-                        label: "Miles",
+                        label: settings.distanceUnit == .kilometers ? "Km" : "Miles",
                         value: session != nil
-                            ? String(format: "%.1f", session!.totalMiles)
+                            ? String(format: "%.1f", settings.displayDistance(miles: session!.totalMiles))
                             : "0.0"
                     )
                     Spacer()
@@ -187,7 +190,7 @@ struct SessionStatsCard<Footer: View>: View {
                         color: Color("TipsColor"),
                         label: "PER HOUR",
                         value: session?.earningsPerHour.formatted(
-                            .currency(code: "USD")
+                            .currency(code: session?.currencyCode ?? "USD")
                         ) ?? "$0.00"
                     )
                     Spacer()
@@ -195,8 +198,8 @@ struct SessionStatsCard<Footer: View>: View {
                     StatItem(
                         icon: "road.lanes",
                         color: Color("FuelColor"),
-                        label: "PER MILE",
-                        value: formattedNetPerMile
+                        label: settings.distanceUnit == .kilometers ? "PER KM" : "PER MILE",
+                        value: formattedNetPerDistance
                     )
                     Spacer()
 
@@ -236,7 +239,7 @@ struct SessionStatsCard<Footer: View>: View {
         .popover(isPresented: $showDeliveriesPicker) {
             VStack {
                 Text("Deliveries")
-                    .font(.headline)
+                .font(.headline)
                 Picker(
                     "Deliveries",
                     selection: Binding(
@@ -256,13 +259,13 @@ struct SessionStatsCard<Footer: View>: View {
         }
     }
 
-    private var formattedNetPerMile: String {
+    private var formattedNetPerDistance: String {
         guard let session = session, session.totalMiles > 0 else {
             return "$0.00"
         }
-        let profit = session.netProfit
-        let miles = Decimal(session.totalMiles)
-        return (profit / miles).formatted(.currency(code: "USD"))
+        let perMile = Double(truncating: session.netPerMile as NSNumber)
+        let converted = settings.displayPerDistance(perMile: perMile)
+        return converted.formatted(.currency(code: session.currencyCode))
     }
 
     private var durationString: String {
@@ -292,6 +295,7 @@ struct SessionStatsCard<Footer: View>: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 SessionStatsCard(
                     session: session,
+                    settings: UserSettings(),
                     isLive: true,
                     showHomeStats: true
                 )
@@ -302,6 +306,7 @@ struct SessionStatsCard<Footer: View>: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 SessionStatsCard(
                     session: session,
+                    settings: UserSettings(),
                     isLive: true,
                     showHomeStats: false
                 )
@@ -316,6 +321,7 @@ struct SessionStatsCard<Footer: View>: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 SessionStatsCard(
                     session: session,
+                    settings: UserSettings(),
                     isLive: false,
                     showHomeStats: true
                 )
@@ -326,6 +332,7 @@ struct SessionStatsCard<Footer: View>: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 SessionStatsCard(
                     session: session,
+                    settings: UserSettings(),
                     isLive: false,
                     showHomeStats: false
                 )
@@ -338,7 +345,7 @@ struct SessionStatsCard<Footer: View>: View {
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                SessionStatsCard(session: nil)
+                SessionStatsCard(session: nil, settings: UserSettings())
             }
         }
         .padding()

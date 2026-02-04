@@ -169,6 +169,7 @@ extension Double {
 
 
 
+@MainActor
 extension WeatherUIModel {
     static let mock = WeatherUIModel(
         temperature: "72°",
@@ -424,8 +425,8 @@ extension PreviewHelper {
         fetcher.lastFetchTime = (stations ?? mockGasStations).isEmpty ? nil : Date()
     }
     
-    static func configureDashboardPreview(weather: WeatherUIModel = .mock, gasStations: [GasStation]? = nil) {
-        configureWeatherPreview(with: weather)
+    static func configureDashboardPreview(weather: WeatherUIModel? = nil, gasStations: [GasStation]? = nil) {
+        configureWeatherPreview(with: weather ?? .mock)
         configureGasPreview(stations: gasStations)
     }
     

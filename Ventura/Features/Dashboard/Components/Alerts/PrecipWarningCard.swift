@@ -55,7 +55,7 @@ struct PrecipWarningCard: View {
                     .font(.subheadline)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
-            }
+            }   
         }
         .padding(.horizontal, 16)
     }

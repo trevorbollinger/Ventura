@@ -15,10 +15,14 @@ struct SessionActivityAttributes: ActivityAttributes {
         var totalEarnings: Double
         var netProfit: Double
         var netHourlyProfit: Double
-        var netPerMile: Double
+        var netPerDistance: Double
         var deliveryCount: Int
-        var totalMiles: Double
+        var totalDistance: Double
         var lastUpdated: Date
+        
+        // Settings that can change freely
+        var currencyCode: String
+        var distanceUnitRaw: String
     }
 
     // Fixed non-changing properties about the activity go here!

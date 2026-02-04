@@ -26,11 +26,16 @@ class WeatherManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     // Cache State
     private var lastFetchTime: Date?
     @Published var lastKnownLocation: CLLocation?
+    private var fullWeatherCache: Weather? // Helper to allow re-mapping units instantly
     private var currentWeather: CurrentWeather? // Internal use only now
     
     // Configuration
     private let cacheDuration: TimeInterval = 15 * 60 // 15 Minutes
     private let locationDebounceDistance: CLLocationDistance = 5000 // 5km (City-level accuracy roughly)
+    
+    // Localization Configuration (Default to US/Imperial, updated via configure())
+    var temperatureUnit: UnitTemperature = .fahrenheit
+    var distanceUnit: UnitLength = .miles
     
     private let service = WeatherService.shared
     private let locationManager = CLLocationManager()
@@ -73,6 +78,28 @@ class WeatherManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         locationManager.desiredAccuracy = kCLLocationAccuracyKilometer
         
         startMonitoring()
+    }
+    
+    func configure(with settings: UserSettings) {
+        let newDist = settings.distanceUnit.unit
+        
+        // Re-map if units changed OR if we just loaded defaults and want to ensure consistency
+        if self.distanceUnit != newDist {
+            self.distanceUnit = newDist
+            
+            // If we have cached weather, re-map it immediately to update UI with new units
+            if let weather = fullWeatherCache, let location = lastKnownLocation {
+                print("WeatherManager: 🔄 Updating Weather Units (Distance: \(newDist.symbol))")
+                self.mapToUI(
+                    weather.currentWeather,
+                    daily: weather.dailyForecast,
+                    hourly: weather.hourlyForecast,
+                    minute: weather.minuteForecast,
+                    alerts: weather.weatherAlerts,
+                    location: location
+                )
+            }
+        }
     }
     
     private var cancellables = Set<AnyCancellable>()
@@ -206,6 +233,7 @@ class WeatherManager: NSObject, ObservableObject, CLLocationManagerDelegate {
                 
                 await MainActor.run {
                     self.currentWeather = weather.currentWeather
+                    self.fullWeatherCache = weather // Cache full object for unit changes
                     self.lastFetchTime = Date()
                     self.lastKnownLocation = location
                     self.isLoading = false
@@ -234,6 +262,8 @@ class WeatherManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         var tempStyle = Measurement<UnitTemperature>.FormatStyle.measurement(width: .narrow, usage: .weather)
         tempStyle.numberFormatStyle = .number.precision(.fractionLength(0))
         
+        let targetDistUnit = self.distanceUnit
+        
         // Calculate precipitation info (text + icon + chance)
         let precipInfo = calculatePrecipitationInfo(minute: minute, hourly: hourly, daily: daily)
         
@@ -246,10 +276,10 @@ class WeatherManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             conditionIcon: weather.symbolName,
             conditionDescription: weather.condition.description,
             apparentTemperature: weather.apparentTemperature.formatted(tempStyle),
-            wind: "\(weather.wind.speed.formatted()) \(weather.wind.direction.formatted())",
+            wind: "\(weather.wind.speed.converted(to: targetDistUnit == .kilometers ? .kilometersPerHour : .milesPerHour).formatted()) \(weather.wind.direction.formatted())",
             uvIndex: "\(weather.uvIndex.value) (\(weather.uvIndex.category.description))",
             humidity: weather.humidity.formatted(.percent),
-            visibility: weather.visibility.formatted(),
+            visibility: weather.visibility.converted(to: targetDistUnit).formatted(),
             pressure: weather.pressure.formatted(),
             cloudCover: weather.cloudCover.formatted(.percent),
             highTemperature: daily[0].highTemperature.formatted(tempStyle),
@@ -258,11 +288,11 @@ class WeatherManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             precipitationIcon: precipInfo.icon,
             precipitationChance: precipInfo.chance,
             
-            // New Safety Data
-            isLowVisibility: weather.visibility.converted(to: .miles).value < 0.5,
-            windSpeed: weather.wind.speed.formatted(),
-            windGust: weather.wind.gust?.formatted() ?? "0 mph",
-            isHighWind: (weather.wind.gust?.converted(to: .milesPerHour).value ?? 0) > 30,
+            // Safety Data
+            isLowVisibility: weather.visibility.converted(to: .miles).value < 0.5, // Logic remains on internal standard (miles) for safety thresholds
+            windSpeed: weather.wind.speed.converted(to: targetDistUnit == .kilometers ? .kilometersPerHour : .milesPerHour).formatted(),
+            windGust: weather.wind.gust?.converted(to: targetDistUnit == .kilometers ? .kilometersPerHour : .milesPerHour).formatted() ?? (targetDistUnit == .kilometers ? "0 km/h" : "0 mph"),
+            isHighWind: (weather.wind.gust?.converted(to: .milesPerHour).value ?? 0) > 30, // Logic remains standardized
             extremeColdAlert: weather.temperature.converted(to: .fahrenheit).value < -10,
             extremeHeatAlert: weather.temperature.converted(to: .fahrenheit).value > 95,
             isPrecipitationAlert: precipInfo.chance != "0%",

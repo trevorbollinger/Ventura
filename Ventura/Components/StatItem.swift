@@ -46,6 +46,7 @@ struct StatItem: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 SessionStatsCard(
                     session: session,
+                    settings: UserSettings(),
                     isLive: true,
                     showHomeStats: true
                 )
@@ -56,6 +57,7 @@ struct StatItem: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 SessionStatsCard(
                     session: session,
+                    settings: UserSettings(),
                     isLive: true,
                     showHomeStats: false
                 )
@@ -70,6 +72,7 @@ struct StatItem: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 SessionStatsCard(
                     session: session,
+                    settings: UserSettings(),
                     isLive: false,
                     showHomeStats: true
                 )
@@ -80,6 +83,7 @@ struct StatItem: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 SessionStatsCard(
                     session: session,
+                    settings: UserSettings(),
                     isLive: false,
                     showHomeStats: false
                 )
@@ -92,7 +96,7 @@ struct StatItem: View {
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                SessionStatsCard(session: nil)
+                SessionStatsCard(session: nil, settings: UserSettings())
             }
         }
         .padding()

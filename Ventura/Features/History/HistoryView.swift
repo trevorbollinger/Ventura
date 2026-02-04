@@ -13,6 +13,9 @@ struct HistoryView: View {
            sort: \.startTimestamp, order: .reverse)
     private var sessions: [Session]
     
+    @Query private var allSettings: [UserSettings]
+    private var settings: UserSettings { allSettings.first ?? UserSettings() }
+    
     @Environment(\.modelContext) private var modelContext
     
     // Selection state
@@ -48,7 +51,7 @@ struct HistoryView: View {
                                                             .transition(.opacity)
 
                                     
-                                    SessionRowContent(session: session)
+                                    SessionRowContent(session: session, settings: settings)
                                 }
                                 .contentShape(Rectangle())
                                 .onTapGesture {
@@ -57,7 +60,7 @@ struct HistoryView: View {
                             } else {
                                 // Normal mode
                                 NavigationLink(destination: SessionSummarySheet(session: session)) {
-                                    SessionRowContent(session: session)
+                                    SessionRowContent(session: session, settings: settings)
                                 }
                             }
                         }
@@ -210,6 +213,7 @@ struct HistoryView: View {
 // Extracted row content for reuse
 struct SessionRowContent: View {
     let session: Session
+    let settings: UserSettings
     
     var body: some View {
         HStack {
@@ -226,23 +230,23 @@ struct SessionRowContent: View {
             Spacer()
             
             VStack(alignment: .trailing, spacing: 4) {
-                Text(session.netProfit.formatted(.currency(code: "USD")))
+                Text(session.netProfit.formatted(.currency(code: session.currencyCode)))
                     .font(.headline)
                     .foregroundStyle(.green)
                 
-                Text("\(session.earningsPerHour.formatted(.currency(code: "USD")))/hr")
+                Text("\(session.earningsPerHour.formatted(.currency(code: session.currencyCode)))/hr")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 
-                Text("\(String(format: "%.1f", session.totalMiles)) mi")
+                Text("\(String(format: "%.1f", settings.displayDistance(miles: session.totalMiles))) \(settings.distanceLabel)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
     }
-    
+}    
 
-}
+
 
 #Preview {
     let container = PreviewHelper.makeContainer()

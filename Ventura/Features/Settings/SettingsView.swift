@@ -138,6 +138,26 @@ struct SettingsForm: View {
                 }
             }
             
+
+            Section("Units & Currency") {
+                Picker("Currency", selection: $userSettings.currencyCode) {
+                    Text("USD ($)").tag("USD")
+                    Text("EUR (€)").tag("EUR")
+                    Text("GBP (£)").tag("GBP")
+                    Text("CAD ($)").tag("CAD")
+                    Text("AUD ($)").tag("AUD")
+                    Text("JPY (¥)").tag("JPY")
+                }
+                
+                Picker("Distance", selection: $userSettings.distanceUnit) {
+                    ForEach(DistanceUnit.allCases) { unit in
+                        Text(unit.title).tag(unit)
+                    }
+                }
+                
+
+            }
+            
 //            Section {
 //                Toggle("Debug Mode", isOn: $userSettings.isDebugMode)
 //            } header: {

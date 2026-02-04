@@ -112,6 +112,7 @@ struct DashboardView: View {
                         TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
                             SessionStatsCard(
                                 session: activeSession,
+                                settings: settings.first ?? UserSettings(),
                                 isLive: true,
                                 timelineDate: timeline.date,
                                 showHomeStats: settings.first?.homeLatitude != nil
@@ -221,6 +222,9 @@ struct DashboardView: View {
             }
         }
         .onAppear {
+            if let userSettings = settings.first {
+                weatherManager.configure(with: userSettings)
+            }
             weatherManager.refreshWeatherIfNeeded(for: locationTracker.currentLocation)
             
             // Always request a fetch on appear - the gasFetcher handles its own 2-hour throttling internally.

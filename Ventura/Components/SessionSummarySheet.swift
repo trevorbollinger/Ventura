@@ -8,6 +8,7 @@
 
 import SwiftUI
 import MapKit
+import SwiftData
 
 struct SessionSummarySheet: View {
     @Bindable var session: Session
@@ -16,6 +17,9 @@ struct SessionSummarySheet: View {
     @State private var showAddTipSheet = false
     @State private var saveTrigger = false
     var isPresentedAsSheet: Bool = false
+    
+    @Query private var allSettings: [UserSettings]
+    private var settings: UserSettings { allSettings.first ?? UserSettings() }
 
     @ScaledMetric(relativeTo: .caption) private var arrowSize: CGFloat = 10
     @ScaledMetric(relativeTo: .caption) private var mapIconSize: CGFloat = 14
@@ -24,7 +28,7 @@ struct SessionSummarySheet: View {
         ScrollView {
                 VStack(spacing: 20) {
                     // Premium Header Card
-                    SessionStatsCard(session: session, editable: true) {
+                    SessionStatsCard(session: session, settings: settings, editable: true) {
                         // Time Range Capsule
                         HStack(spacing: 12) {
                             DateStat(title: "Start", date: startBinding)
@@ -587,7 +591,7 @@ struct EarningsBreakdownBar: View {
     @Previewable @State var showSheet = true
     let mockSession = PreviewHelper.generateMockSessions().first!
     
-    return Color.clear
+    Color.clear
         .sheet(isPresented: $showSheet) {
             SessionSummarySheet(session: mockSession)
         }
