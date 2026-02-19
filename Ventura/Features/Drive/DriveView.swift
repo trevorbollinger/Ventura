@@ -66,6 +66,7 @@ struct DriveView: View {
                 isFollowingUser: $isFollowingUser,
                 session: activeSession,
                 routeID: sessionManager.routeID,
+                liveRoute: sessionManager.liveRoute,
                 homeLocation: homeCoord,
                 homeRadius: userSettings?.homeRadius ?? 0,
                 homeName: userSettings?.homeName ?? "Home",

@@ -44,8 +44,14 @@ class SessionManager: ObservableObject {
     private var pendingTimeAtHome: TimeInterval = 0
     private var pendingTimeAway: TimeInterval = 0
     private var pendingDistance: Double = 0 // In meters
-    private var pendingRoutePoints: [LocationData] = [] // Buffered GPS points
+    @Published private(set) var pendingRoutePoints: [LocationData] = [] // Buffered GPS points (exposed for live map)
     private var lastRouteIDUpdate: Date = .distantPast // Throttle routeID
+    
+    /// The full live route: saved points + in-memory pending points.
+    /// Maps should use this instead of session.route to see the trail immediately.
+    var liveRoute: [LocationData] {
+        (activeSession?.route ?? []) + pendingRoutePoints
+    }
     
     // Live UI State (Published for views)
     struct ActiveSessionState {
@@ -63,24 +69,32 @@ class SessionManager: ObservableObject {
     
     init() {}
     
-    /// Called once at app startup (e.g. from VenturaTabs.onAppear) to inject the context
+    /// Called once at app startup to inject the context. Instant — no disk I/O.
     func configure(modelContext: ModelContext) {
         self.modelContext = modelContext
         print("🔧 SessionManager configured with context")
+    }
+    
+    /// Performs the initial SwiftData fetches. Call from `.task` so the run loop
+    /// can yield between operations and the first frame isn't blocked.
+    func loadInitialData() async {
+        guard let context = modelContext else { return }
         
-        // Always load settings so views can use cachedSettings instead of @Query
+        // 1. Load settings (async-friendly: yields back to run loop after this)
         let settingsDescriptor = FetchDescriptor<UserSettings>()
-        let userSettings = (try? modelContext.fetch(settingsDescriptor).first) ?? UserSettings()
+        let userSettings = (try? context.fetch(settingsDescriptor).first) ?? UserSettings()
         self.cachedSettings = userSettings
         
-        // Load any existing active session
+        // Yield so the UI can draw its first frame with defaults if needed
+        await Task.yield()
+        
+        // 2. Check for an active session
         checkForActiveSession()
         
-        // Start monitoring loop if active
+        // 3. Resume monitoring if a session was already in progress
         if activeSession != nil {
             startTimer()
             startLocationMonitoring()
-            // Restore tracker distance
             locationTracker.setDistance(activeSession?.gpsDistanceMeters ?? 0)
             locationTracker.startTracking()
             
@@ -326,9 +340,10 @@ class SessionManager: ObservableObject {
             // Buffer route point in memory (flushed to DB with flushPendingData)
             pendingRoutePoints.append(locationData)
             
-            // Throttle routeID signal to every 5 seconds (prevents constant map redraws)
+            // Throttle routeID signal to every 2 seconds for smooth map updates
+            // without 1Hz redraws
             let now = Date()
-            if now.timeIntervalSince(lastRouteIDUpdate) >= 5 {
+            if now.timeIntervalSince(lastRouteIDUpdate) >= 2 {
                 self.routeID = UUID()
                 lastRouteIDUpdate = now
             }

@@ -48,7 +48,6 @@ struct VenturaTabs: View {
     
     private let debugAlwaysShowOnboarding = false
     
-    @Query private var settings: [UserSettings]
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -80,12 +79,13 @@ struct VenturaTabs: View {
             OnboardingView()
                 .interactiveDismissDisabled()
         }
-        .onAppear {
+        .task {
             if !hasSeenOnboarding || debugAlwaysShowOnboarding {
                 showingOnboarding = true
                 hasSeenOnboarding = true
             }
             sessionManager.configure(modelContext: modelContext)
+            await sessionManager.loadInitialData()
         }
     }
 }

@@ -1,11 +1,11 @@
 import SwiftUI
-import SwiftData
 import MapKit
 import CoreLocation
 
 struct LiveSessionMapCard: View {
     @EnvironmentObject private var sessionManager: SessionManager
-    @Query private var settings: [UserSettings]
+    
+    private var currentSettings: UserSettings { sessionManager.cachedSettings ?? UserSettings() }
     
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
     
@@ -30,12 +30,12 @@ struct LiveSessionMapCard: View {
             
             // Compact Map View
             FrozenMap(
-                session: sessionManager.activeSession,
-                routeCount: (activeSession?.route.count ?? 0) + 1,
+                liveRoute: sessionManager.liveRoute,
+                routeCount: sessionManager.liveRoute.count,
                 homeLocation: homeLocation,
-                homeRadius: settings.first?.homeRadius ?? 100,
-                homeName: settings.first?.homeName ?? "Home",
-                homeIcon: settings.first?.homeIcon ?? "house.fill",
+                homeRadius: currentSettings.homeRadius,
+                homeName: currentSettings.homeName ?? "Home",
+                homeIcon: currentSettings.homeIcon ?? "house.fill",
                 position: $position
             )
             .frame(height: 200)
@@ -51,15 +51,14 @@ struct LiveSessionMapCard: View {
     }
     
     var homeLocation: CLLocationCoordinate2D? {
-        guard let userSettings = settings.first,
-              let lat = userSettings.homeLatitude,
-              let lon = userSettings.homeLongitude else { return nil }
+        guard let lat = currentSettings.homeLatitude,
+              let lon = currentSettings.homeLongitude else { return nil }
         return CLLocationCoordinate2D(latitude: lat, longitude: lon)
     }
 }
 
 private struct FrozenMap: View, Equatable {
-    let session: Session?
+    let liveRoute: [LocationData]
     let routeCount: Int
     let homeLocation: CLLocationCoordinate2D?
     let homeRadius: Double
@@ -71,9 +70,9 @@ private struct FrozenMap: View, Equatable {
         Map(position: $position) {
             UserAnnotation()
             
-            if let session = session, !session.route.isEmpty {
+            if !liveRoute.isEmpty {
                 MapPolyline(
-                    coordinates: session.route.map {
+                    coordinates: liveRoute.map {
                         CLLocationCoordinate2D(
                             latitude: $0.latitude,
                             longitude: $0.longitude

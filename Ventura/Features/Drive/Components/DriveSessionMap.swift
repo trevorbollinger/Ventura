@@ -16,6 +16,7 @@ struct DriveSessionMap: View, Equatable {
     // Data for Equatable check
     let session: Session?
     let routeID: UUID
+    let liveRoute: [LocationData]
     let homeLocation: CLLocationCoordinate2D?
     let homeRadius: Double
     let homeName: String
@@ -27,6 +28,7 @@ struct DriveSessionMap: View, Equatable {
         isFollowingUser: Binding<Bool>,
         session: Session?,
         routeID: UUID,
+        liveRoute: [LocationData] = [],
         homeLocation: CLLocationCoordinate2D?,
         homeRadius: Double = 0,
         homeName: String = "Home",
@@ -36,6 +38,7 @@ struct DriveSessionMap: View, Equatable {
         self._isFollowingUser = isFollowingUser
         self.session = session
         self.routeID = routeID
+        self.liveRoute = liveRoute
         self.homeLocation = homeLocation
         self.homeRadius = homeRadius
         self.homeName = homeName
@@ -46,10 +49,10 @@ struct DriveSessionMap: View, Equatable {
         Map(position: $position) {
             UserAnnotation()
 
-            // Active Session Route
-            if let session = session, !session.route.isEmpty {
+            // Active Session Route — uses liveRoute (saved + pending points)
+            if !liveRoute.isEmpty {
                 MapPolyline(
-                    coordinates: session.route.map {
+                    coordinates: liveRoute.map {
                         CLLocationCoordinate2D(
                             latitude: $0.latitude,
                             longitude: $0.longitude
@@ -100,7 +103,7 @@ struct DriveSessionMap: View, Equatable {
     static func == (lhs: DriveSessionMap, rhs: DriveSessionMap) -> Bool {
         // Compare efficient properties to decide if we need to redraw
         
-        // Critical: Only check ID. If ID matches, route hasn't changed.
+        // Critical: Only check routeID. When it changes, re-render the polyline.
         if lhs.routeID != rhs.routeID {
             return false
         }
