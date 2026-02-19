@@ -39,7 +39,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		341DF6E22F33A57600F099DF /* pyongyang.gpx */ = {isa = PBXFileReference; lastKnownFileType = text.xml; name = pyongyang.gpx; path = ../../../Downloads/pyongyang.gpx; sourceTree = "<group>"; };
 		341DF6E32F33AA7F00F099DF /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		342E02B32F2AB2F400BAAF32 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		342E02B52F2AB2F400BAAF32 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -131,7 +130,6 @@
 		3459F0BC2F292B5900CEC29A = {
 			isa = PBXGroup;
 			children = (
-				341DF6E22F33A57600F099DF /* pyongyang.gpx */,
 				341DF6E32F33AA7F00F099DF /* Localizable.xcstrings */,
 				3459F0C72F292B5900CEC29A /* Ventura */,
 				34FADBBB2F2AB84C00F9616C /* SessionInfoLiveActivity */,

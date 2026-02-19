@@ -37,8 +37,8 @@ class SessionManager: ObservableObject {
     // Fallback for timer loop
     private var lastUpdateDate: Date = Date()
     
-    // Performance Cache
-    private var cachedSettings: UserSettings?
+    // Performance Cache — exposed so views can read settings without their own @Query
+    @Published var cachedSettings: UserSettings?
     
     // Aggregation State (prevents 1Hz DB writes)
     private var pendingTimeAtHome: TimeInterval = 0
@@ -68,6 +68,11 @@ class SessionManager: ObservableObject {
         self.modelContext = modelContext
         print("🔧 SessionManager configured with context")
         
+        // Always load settings so views can use cachedSettings instead of @Query
+        let settingsDescriptor = FetchDescriptor<UserSettings>()
+        let userSettings = (try? modelContext.fetch(settingsDescriptor).first) ?? UserSettings()
+        self.cachedSettings = userSettings
+        
         // Load any existing active session
         checkForActiveSession()
         
@@ -79,11 +84,6 @@ class SessionManager: ObservableObject {
             locationTracker.setDistance(activeSession?.gpsDistanceMeters ?? 0)
             locationTracker.startTracking()
             
-            // Fetch current settings for Live Activity
-            // Fetch current settings for Live Activity
-            let settingsDescriptor = FetchDescriptor<UserSettings>()
-            let userSettings = (try? modelContext.fetch(settingsDescriptor).first) ?? UserSettings()
-            self.cachedSettings = userSettings // Cache it
             LiveActivityManager.shared.start(session: activeSession!, settings: userSettings)
         }
     }

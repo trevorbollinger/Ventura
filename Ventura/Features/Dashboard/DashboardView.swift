@@ -40,7 +40,9 @@ struct DashboardView: View {
         }
     }
     
-    @Query private var settings: [UserSettings]
+    // Settings come from sessionManager.cachedSettings (no @Query = no synchronous
+    // SwiftData fetch on foreground resume)
+    private var currentSettings: UserSettings { sessionManager.cachedSettings ?? UserSettings() }
     
     @State private var showEndAlert = false
     @State private var startStopTrigger = false
@@ -63,9 +65,9 @@ struct DashboardView: View {
                         LiveSessionStats(
                             ticker: sessionManager.ticker,
                             session: activeSession,
-                            settings: settings.first ?? UserSettings(),
+                            settings: currentSettings,
                             isLive: true,
-                            showHomeStats: settings.first?.homeLatitude != nil
+                            showHomeStats: currentSettings.homeLatitude != nil
                         )
                         .transition(.move(edge: .top).combined(with: .opacity))
                     }
@@ -206,7 +208,7 @@ struct DashboardView: View {
                 .padding()
             }
             .scrollContentBackground(.hidden)
-            .appBackground(style: settings.first?.backgroundStyle ?? .mesh)
+            .appBackground(style: currentSettings.backgroundStyle ?? .mesh)
             .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -242,9 +244,7 @@ struct DashboardView: View {
             // Load last session asynchronously (won't block main thread on foreground)
             await loadLastSession()
             
-            if let userSettings = settings.first {
-                weatherManager.configure(with: userSettings)
-            }
+            weatherManager.configure(with: currentSettings)
             // Trigger initial fetch
             weatherManager.refreshWeatherIfNeeded(for: locationTracker.currentLocation)
             

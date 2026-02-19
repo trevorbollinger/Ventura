@@ -18,11 +18,6 @@ struct VenturaApp: App {
         WindowGroup {
             VenturaTabs()
                 .environmentObject(sessionManager)
-                .onChange(of: scenePhase) { _, newPhase in
-                    if newPhase == .active {
-                        print("📱 ACTIVE at \(Date().formatted(date: .omitted, time: .standard))")
-                    }
-                }
         }
         .modelContainer(for: [UserSettings.self, Session.self])
     }
