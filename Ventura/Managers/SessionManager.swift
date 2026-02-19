@@ -380,7 +380,7 @@ class SessionManager: ObservableObject {
     }
     
     // Helper to construct "Live" state from Session + Pending Data
-    private func currentSessionState(session: Session, settings: UserSettings) -> SessionActivityAttributes.ContentState {
+    public func currentSessionState(session: Session, settings: UserSettings) -> SessionActivityAttributes.ContentState {
         // Calculate virtual totals
         let liveTotalMiles = (session.gpsDistanceMeters + pendingDistance) / 1609.34
         

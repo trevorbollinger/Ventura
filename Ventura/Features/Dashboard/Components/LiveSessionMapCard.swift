@@ -1,6 +1,7 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import SwiftData
 
 struct LiveSessionMapCard: View {
     @EnvironmentObject private var sessionManager: SessionManager
