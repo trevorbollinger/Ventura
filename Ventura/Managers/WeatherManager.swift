@@ -106,9 +106,10 @@ class WeatherManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     /// Starts observing the global LocationTracker to fetch weather automatically in the background.
     func startMonitoring() {
-        // Observe LocationTracker.shared.currentLocation
-        // We use the singleton directly here since this is also a singleton service.
+        // Observe LocationTracker.shared.currentLocation with debounce
+        // Weather only needs updates every 15min — no need to run shouldFetch on every GPS callback
         LocationTracker.shared.$currentLocation
+            .debounce(for: .seconds(30), scheduler: RunLoop.main)
             .sink { [weak self] location in
                 self?.refreshWeatherIfNeeded(for: location)
             }
@@ -122,7 +123,7 @@ class WeatherManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             if shouldFetch(for: location) {
                 fetchWeather(for: location)
             } else {
-                print("WeatherManager: Using cached weather. (Rules: <15m or same city)")
+//                print("WeatherManager: Using cached weather. (Rules: <15m or same city)")
             }
         } else {
             // Case B: No location provided (Tracker Idle)

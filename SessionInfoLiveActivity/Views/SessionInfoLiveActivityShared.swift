@@ -8,6 +8,7 @@
 import ActivityKit
 import SwiftUI
 import WidgetKit
+import UIKit
 
 // MARK: - Attributes Extensions
 
@@ -15,6 +16,12 @@ extension SessionActivityAttributes {
     static var preview: SessionActivityAttributes {
         SessionActivityAttributes(
             startTime: Date()
+        )
+    }
+
+    static var previewOverOneHour: SessionActivityAttributes {
+        SessionActivityAttributes(
+            startTime: Date().addingTimeInterval(-3900)
         )
     }
 }
@@ -151,5 +158,52 @@ struct LiveActivityStatItem: View {
                 .font(.system(size: statLabelSize, weight: .black))
                 .foregroundStyle(.secondary.opacity(0.6))
         }
+    }
+}
+
+struct CompactTimer: View {
+    let startTime: Date
+    
+    private let fontSize: CGFloat = 13
+    private var font: UIFont {
+        UIFont.systemFont(ofSize: fontSize, weight: .bold).rounded
+    }
+    
+    var body: some View {
+        Text(timerInterval: startTime...Date.distantFuture, countsDown: false)
+            .monospacedDigit()
+            .font(.system(size: fontSize, weight: .bold, design: .rounded))
+            .foregroundStyle(.secondary)
+            .frame(width: calculatedWidth, alignment: .leading)
+            .lineLimit(1)
+    }
+    
+    private var calculatedWidth: CGFloat {
+        let duration = max(0, Date().timeIntervalSince(startTime))
+        let sampleString: String
+        
+        // Match the user's expected max width patterns
+        if duration < 3600 {
+            sampleString = "00:00"
+        } else if duration < 36000 {
+            sampleString = "0:00:00"
+        } else {
+            sampleString = "00:00:00"
+        }
+        
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font
+        ]
+        
+        return (sampleString as NSString).size(withAttributes: attributes).width + 2
+    }
+}
+
+extension UIFont {
+    var rounded: UIFont {
+        guard let descriptor = fontDescriptor.withDesign(.rounded) else {
+            return self
+        }
+        return UIFont(descriptor: descriptor, size: pointSize)
     }
 }

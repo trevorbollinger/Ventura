@@ -9,12 +9,25 @@ import SwiftUI
 
 struct LogDeliverySheet: View {
     @Environment(\.dismiss) private var dismiss
+    var initialValue: Decimal? = nil
+    var isEditing: Bool = false
     var onSave: (Decimal, Bool) -> Void
 
     @State private var inputString: String = ""
     @State private var sliderValue: Double = 0
     @State private var isInteractingWithSlider = false
     @State private var countAsDelivery: Bool = true  // Default to true for "Log Delivery"
+    
+    init(initialValue: Decimal? = nil, isEditing: Bool = false, onSave: @escaping (Decimal, Bool) -> Void) {
+        self.initialValue = initialValue
+        self.isEditing = isEditing
+        self.onSave = onSave
+        
+        if let initial = initialValue {
+            _inputString = State(initialValue: "\(initial)")
+            _sliderValue = State(initialValue: NSDecimalNumber(decimal: initial).doubleValue)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -89,24 +102,26 @@ struct LogDeliverySheet: View {
                 }
 
                 // Count as Delivery Toggle
-                Toggle(isOn: $countAsDelivery) {
-                    Text("Count as Delivery")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                }
-                .tint(.green)
+                if !isEditing {
+                    Toggle(isOn: $countAsDelivery) {
+                        Text("Count as Delivery")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                    }
+                    .tint(.green)
 
-                .padding(.horizontal)
-                .padding(.vertical)
-                .glassModifier(in: RoundedRectangle(cornerRadius: 32))
-                .padding(.horizontal)
+                    .padding(.horizontal)
+                    .padding(.vertical)
+                    .glassModifier(in: RoundedRectangle(cornerRadius: 32))
+                    .padding(.horizontal)
+                }
                 Spacer()
 
             }
 
             //                .padding(.top, 15)
 
-            .navigationTitle("Log Delivery")
+            .navigationTitle(isEditing ? "Edit Tip" : "Log Delivery")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

@@ -26,7 +26,7 @@ struct StationResults: Codable {
     let results: [GasStation]?
 }
 
-struct GasStation: Codable, Identifiable {
+struct GasStation: Codable, Identifiable, Equatable {
     let id: String
     let name: String?
     let address: StationAddress?
@@ -63,7 +63,7 @@ struct GasStation: Codable, Identifiable {
     }
 }
 
-struct StationAddress: Codable {
+struct StationAddress: Codable, Equatable {
     let line1: String?
     let locality: String?
     let postalCode: String?
@@ -71,19 +71,19 @@ struct StationAddress: Codable {
     let country: String?
 }
 
-struct StationBrand: Codable {
+struct StationBrand: Codable, Equatable {
     let name: String?
     let imageUrl: String?
 }
 
 // MARK: - Prices
-struct PriceReport: Codable {
+struct PriceReport: Codable, Equatable {
     let fuelProduct: String? // e.g. "regular_gas", "diesel"
     let credit: FuelPrice?
     let cash: FuelPrice?
 }
 
-struct FuelPrice: Codable {
+struct FuelPrice: Codable, Equatable {
     let price: Double?
     let formattedPrice: String?
     let postedTime: String? // ISO date string likely

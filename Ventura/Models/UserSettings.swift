@@ -25,6 +25,9 @@ final class UserSettings {
     // Localization
     var currencyCode: String = "USD"
     var distanceUnitRaw: String = "mi"
+    
+    // Background Style
+    var backgroundStyleRaw: String = "mesh"
 
     
     // Home Location
@@ -60,7 +63,8 @@ final class UserSettings {
          homeIcon: String? = nil,
          homeRadius: Double = 200.0,
          currencyCode: String = "USD",
-         distanceUnitRaw: String = "mi") {
+         distanceUnitRaw: String = "mi",
+         backgroundStyle: BackgroundStyle = .mesh) {
         self.driverTypeRaw = driverType.rawValue
         self.mpg = mpg
         self.hourlyWage = hourlyWage
@@ -82,6 +86,7 @@ final class UserSettings {
         self.homeRadius = homeRadius
         self.currencyCode = currencyCode
         self.distanceUnitRaw = distanceUnitRaw
+        self.backgroundStyleRaw = backgroundStyle.rawValue
     }
 }
 
@@ -146,6 +151,11 @@ extension UserSettings {
     var distanceUnit: DistanceUnit {
         get { DistanceUnit(rawValue: distanceUnitRaw) ?? .miles }
         set { distanceUnitRaw = newValue.rawValue }
+    }
+    
+    var backgroundStyle: BackgroundStyle {
+        get { BackgroundStyle(rawValue: backgroundStyleRaw) ?? .mesh }
+        set { backgroundStyleRaw = newValue.rawValue }
     }
     
 

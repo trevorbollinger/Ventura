@@ -15,6 +15,7 @@ struct SessionSummarySheet: View {
     @Environment(\.dismiss) var dismiss
 
     @State private var showAddTipSheet = false
+    @State private var editingTipIndex: Int? = nil
     @State private var saveTrigger = false
     var isPresentedAsSheet: Bool = false
     
@@ -105,7 +106,7 @@ struct SessionSummarySheet: View {
                             }
                             .padding(.bottom, 4)
 
-                            Button {
+                        Button {
                                 showAddTipSheet = true
                             } label: {
                                 Label("Add Tip", systemImage: "plus.circle.fill")
@@ -115,6 +116,79 @@ struct SessionSummarySheet: View {
                                     .background(Color.accentColor.opacity(0.1))
                                     .clipShape(RoundedRectangle(cornerRadius: 12))
                             }
+                            
+                            DisclosureGroup {
+                                VStack(spacing: 16) {
+                                    Divider()
+                                    
+                                    // Tips List
+                                    if !session.tips.isEmpty {
+                                        VStack(spacing: 12) {
+                                            HStack {
+                                                Text("Tips")
+                                                    .font(.subheadline)
+                                                    .foregroundStyle(.secondary)
+                                                Spacer()
+                                            }
+                                            
+                                            ForEach(session.tips.indices, id: \.self) { index in
+                                                HStack {
+                                                    Text("Tip #\(index + 1)")
+                                                        .font(.callout)
+                                                        .foregroundStyle(.secondary)
+                                                    
+                                                    Spacer()
+                                                    
+                                                    Button {
+                                                        editingTipIndex = index
+                                                    } label: {
+                                                        Text(session.tips[index].formatted(.currency(code: "USD")))
+                                                            .font(.body.monospacedDigit())
+                                                            .foregroundStyle(.primary)
+                                                            .padding(.horizontal, 12)
+                                                            .padding(.vertical, 6)
+                                                            .background(Color.secondary.opacity(0.1))
+                                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                                    }
+                                                    
+                                                    Button(role: .destructive) {
+                                                        session.tips.remove(at: index)
+                                                        session.invalidateCache()
+                                                    } label: {
+                                                        Image(systemName: "trash.fill")
+                                                            .foregroundStyle(.red)
+                                                            .font(.caption)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    Divider()
+                                    
+                                    // Delivery Counter
+                                    HStack {
+                                        Text("Deliveries")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                        
+                                        Spacer()
+                                        
+                                        Text("\(session.deliveriesCount)")
+                                            .font(.headline)
+                                            .monospacedDigit()
+                                        
+                                        Stepper("Deliveries", value: $session.deliveriesCount, in: 0...999)
+                                            .labelsHidden()
+                                    }
+                                }
+                                .padding(.top, 8)
+                            } label: {
+                                Text("Session Details")
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                            }
+                            .tint(.primary)
                         }
                         .padding()
                     }
@@ -256,7 +330,21 @@ struct SessionSummarySheet: View {
                 session.invalidateCache()
             }
         }
+        .sheet(item: Binding(
+            get: { editingTipIndex.map { IdentifiableInt(id: $0) } },
+            set: { editingTipIndex = $0?.id }
+        )) { item in
+            LogDeliverySheet(initialValue: session.tips[item.id], isEditing: true) { amount, _ in
+                if session.tips.indices.contains(item.id) {
+                    session.tips[item.id] = amount
+                    session.invalidateCache()
+                }
+            }
+        }
+    }
 
+    struct IdentifiableInt: Identifiable {
+        let id: Int
     }
     
     // Global helper to dismiss keyboard

@@ -109,6 +109,19 @@ struct DateRangeHelper {
         return DateInterval(start: startOfLastYear, end: endOfLastYear)
     }
     
+    // MARK: - Current Day Logic
+    
+    var startOfToday: Date {
+        calendar.startOfDay(for: Date())
+    }
+    
+    var lastDayInterval: DateInterval {
+        let startOfToday = self.startOfToday
+        let startOfYesterday = calendar.date(byAdding: .day, value: -1, to: startOfToday)!
+        let endOfYesterday = calendar.date(byAdding: .second, value: -1, to: startOfToday)!
+        return DateInterval(start: startOfYesterday, end: endOfYesterday)
+    }
+    
     // MARK: - Analytics Filtering
     
     /// Returns the cutoff date for a standard analytics lookback.

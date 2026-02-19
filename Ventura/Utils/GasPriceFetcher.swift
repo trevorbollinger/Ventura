@@ -6,7 +6,7 @@ import Combine
 class GasPriceFetcher: NSObject, ObservableObject, WKNavigationDelegate, WKScriptMessageHandler {
     static let shared = GasPriceFetcher()
     
-    var webView: WKWebView!
+    var webView: WKWebView?
     @Published var stations: [GasStation] = []
     @Published var isLoading: Bool = false
     @Published var lastError: String? = nil
@@ -25,21 +25,23 @@ class GasPriceFetcher: NSObject, ObservableObject, WKNavigationDelegate, WKScrip
     
     override init() {
         super.init()
-        let config = WKWebViewConfiguration()
-        config.userContentController.add(self, name: "gasData")
-        
-        // Standardize User-Agent:
-        // By setting this, we append "Safari/..." to the system default UA.
-        // This makes the system provide its REAL OS/Device info, but identifies as a browser.
-        config.applicationNameForUserAgent = "Version/17.0 Safari/605.1.15"
-        
-        self.webView = WKWebView(frame: .zero, configuration: config)
-        // No need to set customUserAgent anymore; we rely on the system + applicationName
-        self.webView.navigationDelegate = self
+        // Lazy initialization of WebView moved to ensureWebView()
         
         // Load Cache
         loadCache()
+    }
+    
+    private func ensureWebView() {
+        guard webView == nil else { return }
         
+        let config = WKWebViewConfiguration()
+        config.userContentController.add(self, name: "gasData")
+        config.applicationNameForUserAgent = "Version/17.0 Safari/605.1.15"
+        
+        let newWebView = WKWebView(frame: .zero, configuration: config)
+        newWebView.navigationDelegate = self
+        self.webView = newWebView
+        print("GasPriceFetcher: WKWebView lazily initialized.")
     }
 
     func fetchGasPrices(latitude: Double, longitude: Double, force: Bool = false) {
@@ -57,12 +59,21 @@ class GasPriceFetcher: NSObject, ObservableObject, WKNavigationDelegate, WKScrip
             let movedSignificantly = (latDiff > 0.05 || lonDiff > 0.05) // Roughly 5km
             
             if elapsed < cacheDuration && !movedSignificantly {
-                print("GAS FETCH SKIPPED: Using cached data (\(Int(elapsed/60)) min old).")
+                print("GAS FETCH SKIPPED: Using cached data (\(Int(elapsed/60)) min old). (Foreground check)")
                 return
             }
         }
         
-        print("Starting fetchGasPrices for location: \(latitude), \(longitude)...")
+        // Prevent stacking requests
+        if isLoading && !force {
+            print("GAS FETCH SKIPPED: Already loading.")
+            return
+        }
+        
+        print("Starting fetchGasPrices for location: \(latitude), \(longitude)... Is Loading: \(isLoading)")
+        
+        ensureWebView()
+        guard let webView = webView else { return }
         
         self.pendingLatitude = latitude
         self.pendingLongitude = longitude
@@ -70,6 +81,7 @@ class GasPriceFetcher: NSObject, ObservableObject, WKNavigationDelegate, WKScrip
         if let url = URL(string: "https://www.gasbuddy.com") {
             isLoading = true
             lastError = nil
+            webView.stopLoading() // Stop any previous or background activity first
             let request = URLRequest(url: url)
             webView.load(request)
         }
@@ -205,7 +217,13 @@ class GasPriceFetcher: NSObject, ObservableObject, WKNavigationDelegate, WKScrip
                 DispatchQueue.main.async {
                     self.stations = validStations
                     self.isLoading = false
-                    self.saveCache() // SAVE TO DISK
+                    self.saveCache()
+                    
+                    // PERFORMANCE: Pause/Clear the Web View now that we have data
+                    // This prevents background CPU usage from ads/trackers on the page.
+                    self.webView?.evaluateJavaScript("document.body.innerHTML = ''; window.stop();") { _, _ in 
+                         // print("WEBVIEW: Cleared and stopped.")
+                    }
                 }
             } catch {
                 print("DECODE ERROR: \(error)")
@@ -213,7 +231,6 @@ class GasPriceFetcher: NSObject, ObservableObject, WKNavigationDelegate, WKScrip
                     self.lastError = "Failed to decode server response"
                     self.isLoading = false
                 }
-                // print("RAW DATA: \(jsonString)")
             }
         }
     }
@@ -238,7 +255,7 @@ class GasPriceFetcher: NSObject, ObservableObject, WKNavigationDelegate, WKScrip
 // MARK: - SwiftUI View Wrapper
 import SwiftUI
 
-struct WebViewContainer: UIViewRepresentable {
+struct WebViewContainer: UIViewRepresentable, Equatable {
     let webView: WKWebView
     
     func makeUIView(context: Context) -> WKWebView {
@@ -246,5 +263,26 @@ struct WebViewContainer: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: WKWebView, context: Context) {
+        // No-op to prevent reload
+    }
+    
+    static func == (lhs: WebViewContainer, rhs: WebViewContainer) -> Bool {
+        return lhs.webView === rhs.webView
+    }
+}
+
+/// Isolated view that hosts the hidden WebView for gas price fetching.
+/// By observing GasPriceFetcher here (instead of at VenturaApp root),
+/// state changes only invalidate THIS view, not the entire app hierarchy.
+struct WebViewBackground: View {
+    @ObservedObject private var gasFetcher = GasPriceFetcher.shared
+    
+    var body: some View {
+        Group {
+            if let webView = gasFetcher.webView {
+                WebViewContainer(webView: webView)
+                    .equatable()
+            }
+        }
     }
 }

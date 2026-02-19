@@ -29,59 +29,14 @@ struct LiveSessionMapCard: View {
             }
             
             // Compact Map View
-            Map(position: $position) {
-                UserAnnotation()
-                
-                // Active Session Route
-                if let session = activeSession, !session.route.isEmpty {
-                    MapPolyline(
-                        coordinates: session.route.map {
-                            CLLocationCoordinate2D(
-                                latitude: $0.latitude,
-                                longitude: $0.longitude
-                            )
-                        }
-                    )
-                    .stroke(
-                        .blue,
-                        style: StrokeStyle(
-                            lineWidth: 4,
-                            lineCap: .round,
-                            lineJoin: .round
-                        )
-                    )
-                }
-                
-                // Home Location
-                if let userSettings = settings.first,
-                   let lat = userSettings.homeLatitude,
-                   let lon = userSettings.homeLongitude {
-                    let homeCoord = CLLocationCoordinate2D(
-                        latitude: lat,
-                        longitude: lon
-                    )
-                    
-                    MapCircle(
-                        center: homeCoord,
-                        radius: userSettings.homeRadius
-                    )
-                    .foregroundStyle(.blue.opacity(0.15))
-                    .stroke(.blue.opacity(0.3), lineWidth: 2)
-                    
-                    Marker(
-                        userSettings.homeName ?? "Home",
-                        systemImage: userSettings.homeIcon ?? "house.fill",
-                        coordinate: homeCoord
-                    )
-                    .tint(.blue)
-                }
-            }
-            .mapStyle(
-                .standard(
-                    elevation: .realistic,
-                    pointsOfInterest: .excludingAll,
-                    showsTraffic: true
-                )
+            FrozenMap(
+                session: sessionManager.activeSession,
+                routeCount: (activeSession?.route.count ?? 0) + 1,
+                homeLocation: homeLocation,
+                homeRadius: settings.first?.homeRadius ?? 100,
+                homeName: settings.first?.homeName ?? "Home",
+                homeIcon: settings.first?.homeIcon ?? "house.fill",
+                position: $position
             )
             .frame(height: 200)
             .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -93,6 +48,78 @@ struct LiveSessionMapCard: View {
         .onAppear {
             position = .userLocation(fallback: .automatic)
         }
+    }
+    
+    var homeLocation: CLLocationCoordinate2D? {
+        guard let userSettings = settings.first,
+              let lat = userSettings.homeLatitude,
+              let lon = userSettings.homeLongitude else { return nil }
+        return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+    }
+}
+
+private struct FrozenMap: View, Equatable {
+    let session: Session?
+    let routeCount: Int
+    let homeLocation: CLLocationCoordinate2D?
+    let homeRadius: Double
+    let homeName: String
+    let homeIcon: String
+    @Binding var position: MapCameraPosition
+    
+    var body: some View {
+        Map(position: $position) {
+            UserAnnotation()
+            
+            if let session = session, !session.route.isEmpty {
+                MapPolyline(
+                    coordinates: session.route.map {
+                        CLLocationCoordinate2D(
+                            latitude: $0.latitude,
+                            longitude: $0.longitude
+                        )
+                    }
+                )
+                .stroke(
+                    .blue,
+                    style: StrokeStyle(
+                        lineWidth: 4,
+                        lineCap: .round,
+                        lineJoin: .round
+                    )
+                )
+            }
+            
+            if let homeCoord = homeLocation {
+                MapCircle(
+                    center: homeCoord,
+                    radius: homeRadius
+                )
+                .foregroundStyle(.blue.opacity(0.15))
+                .stroke(.blue.opacity(0.3), lineWidth: 2)
+                
+                Marker(
+                    homeName,
+                    systemImage: homeIcon,
+                    coordinate: homeCoord
+                )
+                .tint(.blue)
+            }
+        }
+        .mapStyle(
+            .standard(
+                elevation: .realistic,
+                pointsOfInterest: .excludingAll,
+                showsTraffic: true
+            )
+        )
+    }
+    
+    static func == (lhs: FrozenMap, rhs: FrozenMap) -> Bool {
+        return lhs.routeCount == rhs.routeCount &&
+               lhs.homeLocation?.latitude == rhs.homeLocation?.latitude &&
+               lhs.homeLocation?.longitude == rhs.homeLocation?.longitude &&
+               lhs.homeRadius == rhs.homeRadius
     }
 }
 

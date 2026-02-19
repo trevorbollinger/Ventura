@@ -84,16 +84,27 @@ class PermissionManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
     }
 
+    private var lastMotionUpdate: Date = .distantPast
+    
     func startMotionUpdates() {
         if CMMotionActivityManager.isActivityAvailable() {
             motionActivityManager.startActivityUpdates(to: .main) { [weak self] activity in
-                guard let activity = activity else { return }
+                guard let self = self, let activity = activity else { return }
+                
+                // PERFORMANCE: Throttle motion updates to max 1 per second.
+                // On foreground resume, iOS delivers ALL buffered motion updates at once,
+                // and each one was triggering 7 separate @Published changes → 7x view redraws.
+                let now = Date()
+                guard now.timeIntervalSince(self.lastMotionUpdate) >= 1.0 else { return }
+                self.lastMotionUpdate = now
+                
                 DispatchQueue.main.async {
-                    self?.motionPermissionStatus = "Authorized"
-                    self?.isMoving = activity.automotive
-                    self?.motionStatus = self?.getActivityString(activity) ?? "Unknown"
-                    self?.motionConfidence = self?.getConfidenceString(activity.confidence) ?? "N/A"
-                    self?.rawMotionFlags = [
+                    // Batch all state changes together to minimize view invalidation
+                    self.motionPermissionStatus = "Authorized"
+                    self.isMoving = activity.automotive
+                    self.motionStatus = self.getActivityString(activity)
+                    self.motionConfidence = self.getConfidenceString(activity.confidence)
+                    self.rawMotionFlags = [
                         "Automotive": activity.automotive,
                         "Stationary": activity.stationary,
                         "Walking": activity.walking,

@@ -13,6 +13,7 @@ final class LiveActivityManager {
     
     // Hold reference to the current activity
     private var activity: Activity<SessionActivityAttributes>?
+    private var lastPushDate: Date?
     
     private init() {}
     
@@ -22,14 +23,14 @@ final class LiveActivityManager {
             if let existingActivity = Activity<SessionActivityAttributes>.activities.first {
                 self.activity = existingActivity
                 print("Recovered existing Live Activity: \(existingActivity.id)")
-                update(session: session, settings: settings) // Immediate update on recovery
+                update(session: session, settings: settings, force: true) // Immediate update on recovery
                 return
             }
         }
 
         // Ensure we don't start multiple activities
         guard activity == nil else {
-            update(session: session, settings: settings)
+            update(session: session, settings: settings, force: true)
             return
         }
         
@@ -39,24 +40,10 @@ final class LiveActivityManager {
             return
         }
         
-        // Use CURRENT settings for display (not session snapshot)
-        let displayDistance = settings.displayDistance(miles: session.totalMiles)
-        let perMile = session.totalMiles > 0 ? Double(truncating: session.netPerMile as NSNumber) : 0
-        let displayPerDistance = settings.displayPerDistance(perMile: perMile)
+        let contentState = LiveActivityManager.buildContentState(session: session, settings: settings)
         
         let attributes = SessionActivityAttributes(
             startTime: session.startTimestamp
-        )
-        let contentState = SessionActivityAttributes.ContentState(
-            totalEarnings: NSDecimalNumber(decimal: session.grossEarnings).doubleValue,
-            netProfit: NSDecimalNumber(decimal: session.netProfit).doubleValue,
-            netHourlyProfit: NSDecimalNumber(decimal: session.earningsPerHour).doubleValue,
-            netPerDistance: displayPerDistance,
-            deliveryCount: session.deliveriesCount,
-            totalDistance: displayDistance,
-            lastUpdated: Date(),
-            currencyCode: settings.currencyCode,
-            distanceUnitRaw: settings.distanceUnitRaw
         )
         
         let content = ActivityContent(state: contentState, staleDate: nil)
@@ -67,21 +54,43 @@ final class LiveActivityManager {
                 content: content,
                 pushType: nil
             )
+            lastPushDate = Date()
             print("Live Activity started with ID: \(activity?.id ?? "unknown")")
         } catch {
             print("Failed to start Live Activity: \(error.localizedDescription)")
         }
     }
     
-    func update(session: Session, settings: UserSettings) {
+    func update(session: Session, settings: UserSettings, force: Bool = false) {
+        let state = LiveActivityManager.buildContentState(session: session, settings: settings)
+        update(state: state, force: force)
+    }
+    
+    func update(state: SessionActivityAttributes.ContentState, force: Bool = false) {
         guard let activity = activity else { return }
         
+        // Throttling: Only update if forced OR >15 seconds have passed
+        if !force, let last = lastPushDate, Date().timeIntervalSince(last) < 15 {
+            return
+        }
+        
+        let content = ActivityContent(state: state, staleDate: nil)
+        
+        Task {
+            await activity.update(content)
+            self.lastPushDate = Date()
+            if force { print("⚡️ Live Activity Forced Update") }
+        }
+    }
+    
+    // Helper to build state from Session (for convenience)
+    static func buildContentState(session: Session, settings: UserSettings) -> SessionActivityAttributes.ContentState {
         // Use CURRENT settings for display
         let displayDistance = settings.displayDistance(miles: session.totalMiles)
         let perMile = session.totalMiles > 0 ? Double(truncating: session.netPerMile as NSNumber) : 0
         let displayPerDistance = settings.displayPerDistance(perMile: perMile)
         
-        let contentState = SessionActivityAttributes.ContentState(
+        return SessionActivityAttributes.ContentState(
             totalEarnings: NSDecimalNumber(decimal: session.grossEarnings).doubleValue,
             netProfit: NSDecimalNumber(decimal: session.netProfit).doubleValue,
             netHourlyProfit: NSDecimalNumber(decimal: session.earningsPerHour).doubleValue,
@@ -92,12 +101,6 @@ final class LiveActivityManager {
             currencyCode: settings.currencyCode,
             distanceUnitRaw: settings.distanceUnitRaw
         )
-        
-        let content = ActivityContent(state: contentState, staleDate: nil)
-        
-        Task {
-            await activity.update(content)
-        }
     }
     
     func end() {

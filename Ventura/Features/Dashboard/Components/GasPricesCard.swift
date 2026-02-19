@@ -43,20 +43,12 @@ struct GasPricesCard: View {
         return "Updated \(formatter.localizedString(for: lastTime, relativeTo: updateDate))"
     }
     
-    private var sortedStations: [GasStation] {
-        switch sortOption {
-        case .price:
-            return stations.sorted { ($0.regularPrice ?? Double.infinity) < ($1.regularPrice ?? Double.infinity) }
-        case .distance:
-            guard let userLoc = userLocation else { return stations }
-            return stations.sorted { s1, s2 in
-                let d1 = s1.distance(from: userLoc)
-                let d2 = s2.distance(from: userLoc)
-                return d1 < d2
-            }
-        }
-    }
+    @State private var sortedStations: [GasStation] = []
     
+    // Throttle location updates for sorting
+    @State private var lastSortLocation: CLLocation?
+    private let sortDistanceThreshold: CLLocationDistance = 500 // meters
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             // Header
@@ -205,7 +197,55 @@ struct GasPricesCard: View {
 //        .overlay(
 //            RoundedRectangle(cornerRadius: 20)
 //                .stroke(Color.gray.opacity(0.5), lineWidth: 1)
-//        )
+        .onChange(of: stations) { _, _ in
+            updateSortedStations()
+        }
+        .onChange(of: sortOption) { _, _ in
+            updateSortedStations()
+        }
+        .onChange(of: userLocation) { _, newLocation in
+             guard let newLocation else { return }
+             if sortOption == .distance {
+                 if let lastLoc = lastSortLocation {
+                     let distance = newLocation.distance(from: lastLoc)
+                     if distance > sortDistanceThreshold {
+                         updateSortedStations()
+                     }
+                 } else {
+                     updateSortedStations()
+                 }
+             }
+        }
+        .onAppear {
+            updateSortedStations()
+        }
+    }
+    
+    private func updateSortedStations() {
+        // Run sorting on main thread (throttled by onChange)
+        // For <20 stations, this is negligible loop cost compared to body redrawing
+        
+        var newSorted: [GasStation] = []
+        
+        switch sortOption {
+        case .price:
+            newSorted = stations.sorted {
+                ($0.regularPrice ?? Double.infinity) < ($1.regularPrice ?? Double.infinity)
+            }
+        case .distance:
+            if let userLoc = userLocation {
+                newSorted = stations.sorted { s1, s2 in
+                    let d1 = s1.distance(from: userLoc)
+                    let d2 = s2.distance(from: userLoc)
+                    return d1 < d2
+                }
+                lastSortLocation = userLoc
+            } else {
+                newSorted = stations
+            }
+        }
+        
+        self.sortedStations = newSorted
     }
 
     private func stationRow(_ station: GasStation) -> some View {

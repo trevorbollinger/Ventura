@@ -19,12 +19,15 @@ class LocationTracker: NSObject, ObservableObject {
     @Published var totalDistance: Double = 0.0 // in meters
     @Published var currentLocation: CLLocation?
     
-    // --- Debug / Diagnostics ---
-    @Published var trackingStatus: String = "Idle"
-    @Published var gpsAccuracy: Double = 0.0
-    @Published var currentSpeedMph: Double = 0.0
-    @Published var dataPointsCollected: Int = 0
-    @Published var isEffectivelyMoving: Bool = false
+    // --- Debug / Diagnostics (consolidated to reduce @Published emissions) ---
+    struct Diagnostics {
+        var trackingStatus: String = "Idle"
+        var gpsAccuracy: Double = 0.0
+        var currentSpeedMph: Double = 0.0
+        var dataPointsCollected: Int = 0
+        var isEffectivelyMoving: Bool = false
+    }
+    @Published var diagnostics = Diagnostics()
     
     private var trackingStartTime: Date?
     private var lastValidLocation: CLLocation?
@@ -64,7 +67,7 @@ class LocationTracker: NSObject, ObservableObject {
         locationManager.distanceFilter = 10 // Capture updates every 10 meters - Sweet spot for accuracy vs data size
         locationManager.startUpdatingLocation()
         
-        trackingStatus = "Active (High Precision)"
+        diagnostics.trackingStatus = "Active (High Precision)"
         print("📍 Started high-precision tracking at \(trackingStartTime!)")
     }
     
@@ -75,16 +78,14 @@ class LocationTracker: NSObject, ObservableObject {
         locationManager.stopUpdatingLocation()
         lastValidLocation = nil
         currentLocation = nil // Clear UI state to prevent showing old location on next start
-        trackingStatus = "Stopped"
+        diagnostics.trackingStatus = "Stopped"
         print("📍 Stopped tracking")
     }
 
     func resetDistance() {
         totalDistance = 0.0
-        dataPointsCollected = 0
         lastValidLocation = nil
-        isEffectivelyMoving = false
-        trackingStatus = "Distance Reset"
+        diagnostics = Diagnostics(trackingStatus: "Distance Reset")
     }
     
     func setDistance(_ meters: Double) {
@@ -150,15 +151,16 @@ extension LocationTracker: CLLocationManagerDelegate {
             // We only consider "Effectively Moving" if we have speed and accuracy
             let isMoving = isMovingSpeed && isAccurateEnough
             
-            // Debounce/Consistency check could go here, but for now direct update
-            self.isEffectivelyMoving = isMoving
+            let speedMph = isMoving ? (reportedSpeed * 2.23694) : 0
             
-            currentSpeedMph = isMoving ? (reportedSpeed * 2.23694) : 0
-            
-            // Update Diagnostics
-            gpsAccuracy = location.horizontalAccuracy
-            dataPointsCollected += 1
-            trackingStatus = isMoving ? "Moving (\(Int(currentSpeedMph)) mph)" : "Stationary (Filtered)"
+            // Update all diagnostics in a single @Published write
+            diagnostics = Diagnostics(
+                trackingStatus: isMoving ? "Moving (\(Int(speedMph)) mph)" : "Stationary (Filtered)",
+                gpsAccuracy: location.horizontalAccuracy,
+                currentSpeedMph: speedMph,
+                dataPointsCollected: diagnostics.dataPointsCollected + 1,
+                isEffectivelyMoving: isMoving
+            )
             
             // 2. Distance Filtering:
             // Only add distance if we are actually moving at a real speed
@@ -206,6 +208,6 @@ extension LocationTracker: CLLocationManagerDelegate {
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         print("LocationTracker error: \(error.localizedDescription)")
-        trackingStatus = "Error: \(error.localizedDescription)"
+        diagnostics.trackingStatus = "Error: \(error.localizedDescription)"
     }
 }

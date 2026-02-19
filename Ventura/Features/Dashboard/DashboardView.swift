@@ -15,36 +15,61 @@ struct DashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var sessionManager: SessionManager
     @ObservedObject private var weatherManager = WeatherManager.shared
-    @ObservedObject private var locationTracker = LocationTracker.shared
+    private let locationTracker = LocationTracker.shared
     @ObservedObject private var gasFetcher = GasPriceFetcher.shared
     
-    @Query(
-        filter: #Predicate<Session> { $0.endTimestamp != nil },
-        sort: \Session.endTimestamp,
-        order: .reverse
-    )
-    private var completedSessions: [Session]
+    // PERFORMANCE: Manual fetch instead of @Query to prevent synchronous
+    // re-evaluation on every foreground resume. Dashboard only needs the most
+    // recent completed session for the "Last Session" card.
+    @State private var lastSession: Session?
+    
+    private func loadLastSession() async {
+        let thirtyDaysAgo = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+        let cutoffDate = Calendar.current.startOfDay(for: thirtyDaysAgo)
+        var descriptor = FetchDescriptor<Session>(
+            predicate: #Predicate<Session> {
+                $0.endTimestamp != nil && $0.startTimestamp >= cutoffDate
+            },
+            sortBy: [SortDescriptor(\.endTimestamp, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        do {
+            lastSession = try modelContext.fetch(descriptor).first
+        } catch {
+            print("DashboardView: Failed to fetch last session: \(error)")
+        }
+    }
     
     @Query private var settings: [UserSettings]
     
     @State private var showEndAlert = false
     @State private var startStopTrigger = false
     @State private var showSummarySheet = false
-    @State private var navigationPath = NavigationPath()
+    @State private var showDriveSheet = false
     
     var activeSession: Session? {
         sessionManager.activeSession
     }
     
-    var lastSession: Session? {
-        completedSessions.first
-    }
     
     var body: some View {
-        NavigationStack(path: $navigationPath) {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
                     // MARK: - Session Controls Section
+                    
+                    // Session Stats Card (only during active session)
+                    if activeSession != nil {
+                        LiveSessionStats(
+                            ticker: sessionManager.ticker,
+                            session: activeSession,
+                            settings: settings.first ?? UserSettings(),
+                            isLive: true,
+                            showHomeStats: settings.first?.homeLatitude != nil
+                        )
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                    
                     // Start/Stop Button
                     if activeSession != nil {
                         // STOP BUTTON
@@ -107,30 +132,17 @@ struct DashboardView: View {
                         }
                     }
                     
-                    // Session Stats Card (only during active session)
-                    if activeSession != nil {
-                        TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
-                            SessionStatsCard(
-                                session: activeSession,
-                                settings: settings.first ?? UserSettings(),
-                                isLive: true,
-                                timelineDate: timeline.date,
-                                showHomeStats: settings.first?.homeLatitude != nil
-                            )
-                        }
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    }
+                  
+                    
                     
                     // Live Map Card (only during active session)
                     if activeSession != nil {
-                        NavigationLink(value: "DriveView") {
-                            LiveSessionMapCard()
-                                .environmentObject(sessionManager)
-                        }
-                        .buttonStyle(.plain)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                        
-                       
+                        LiveSessionMapCard()
+                            .environmentObject(sessionManager)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                            .onTapGesture {
+                                showDriveSheet = true 
+                            }
                     }
                     
                     
@@ -193,18 +205,23 @@ struct DashboardView: View {
                 }
                 .padding()
             }
+            .scrollContentBackground(.hidden)
+            .appBackground(style: settings.first?.backgroundStyle ?? .mesh)
             .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: String.self) { value in
-                if value == "DriveView" {
-                    DriveView()
-                }
-            }
         }
-        .animation(
-            .spring(response: 0.3, dampingFraction: 0.9),
-            value: activeSession != nil
-        )
+
+
+        .sheet(isPresented: $showDriveSheet) {
+            NavigationStack {
+                DriveView()
+            }
+            // Add presentationDetents if needed, or leave as default.
+            // User requested "a sheet that pops up".
+             #if os(iOS)
+            .presentationDetents([.large])
+             #endif
+        }
         .sheet(isPresented: $showSummarySheet) {
             if let sessionToShow = sessionManager.lastEndedSession
                 ?? lastSession
@@ -221,39 +238,48 @@ struct DashboardView: View {
                 #endif
             }
         }
-        .onAppear {
+        .task {
+            // Load last session asynchronously (won't block main thread on foreground)
+            await loadLastSession()
+            
             if let userSettings = settings.first {
                 weatherManager.configure(with: userSettings)
             }
+            // Trigger initial fetch
             weatherManager.refreshWeatherIfNeeded(for: locationTracker.currentLocation)
             
-            // Always request a fetch on appear - the gasFetcher handles its own 2-hour throttling internally.
             let targetLocation = locationTracker.currentLocation ?? weatherManager.lastKnownLocation
             if let loc = targetLocation {
                 gasFetcher.fetchGasPrices(latitude: loc.coordinate.latitude, longitude: loc.coordinate.longitude)
             }
         }
-        .onChange(of: locationTracker.currentLocation) { _, newLoc in
-            if let loc = newLoc {
-                weatherManager.refreshWeatherIfNeeded(for: loc)
-            }
-        }
+        // Removed .onChange(of: locationTracker.currentLocation) to prevent 1Hz re-renders.
+        // Side effects should be handled by specific components or Managers.
         .onChange(of: weatherManager.lastKnownLocation) { _, newLoc in
-            // Trigger background gas fetch when location is first acquired
             if let loc = newLoc, !gasFetcher.isLoading && gasFetcher.lastError == nil {
                 gasFetcher.fetchGasPrices(latitude: loc.coordinate.latitude, longitude: loc.coordinate.longitude)
+            }
+        }
+        .onChange(of: sessionManager.activeSession) { oldSession, newSession in
+            // If session just ended
+            if oldSession != nil && newSession == nil {
+                showDriveSheet = false
+                // Add a small delay to allow drive sheet to dismiss before showing summary
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    showSummarySheet = true
+                }
             }
         }
     }
     
     private func startSession() {
         sessionManager.startSession()
-        navigationPath.append("DriveView")
+        showDriveSheet = true 
     }
     
     private func stopSession() {
         sessionManager.stopSession()
-        showSummarySheet = true
+        // Summary sheet will be triggered by onChange
     }
 }
 

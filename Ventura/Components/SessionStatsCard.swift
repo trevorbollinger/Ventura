@@ -8,10 +8,12 @@ struct SessionStatsCard<Footer: View>: View {
     let timelineDate: Date
     let editable: Bool
     let showHomeStats: Bool
+    let sessionState: SessionManager.ActiveSessionState? // Changed from LiveMetrics
+    
     @ScaledMetric(relativeTo: .largeTitle) private var profitSize: CGFloat = 52
     @State private var showDeliveriesPicker = false
     @ViewBuilder let footer: Footer
-
+    
     init(
         session: Session?,
         settings: UserSettings,
@@ -19,6 +21,7 @@ struct SessionStatsCard<Footer: View>: View {
         timelineDate: Date = Date(),
         editable: Bool = false,
         showHomeStats: Bool = true,
+        sessionState: SessionManager.ActiveSessionState? = nil,
         @ViewBuilder footer: () -> Footer = { EmptyView() }
     ) {
         self.session = session
@@ -27,11 +30,18 @@ struct SessionStatsCard<Footer: View>: View {
         self.timelineDate = timelineDate
         self.editable = editable
         self.showHomeStats = showHomeStats
+        self.sessionState = sessionState
         self.footer = footer()
     }
 
     var body: some View {
-        VStack(spacing: 14) {
+        content(date: timelineDate)
+    }
+
+    private func content(date: Date) -> some View {
+        let metrics = calculateMetrics()
+        
+        return VStack(spacing: 14) {
             // Determine what to show: Active Session -> Last Session -> Empty State
             // (Passed in session should already be the correct one)
 
@@ -65,10 +75,8 @@ struct SessionStatsCard<Footer: View>: View {
 
             // 1. Profit Hero
             VStack(spacing: 4) {
-
                 Text(
-                    session?.netProfit.formatted(.currency(code: "USD"))
-                        ?? "$0.00"
+                    (metrics.netProfit).formatted(.currency(code: session?.currencyCode ?? "USD"))
                 )
                 .font(.system(size: profitSize, weight: .black, design: .rounded))
                 .foregroundStyle(
@@ -91,7 +99,7 @@ struct SessionStatsCard<Footer: View>: View {
                         icon: "clock.fill",
                         color: Color("WageColor"),
                         label: "Time",
-                        value: durationString
+                        value: sessionState != nil ? TimeFormatter.formatDuration(sessionState!.totalDuration) : durationString(at: date)
                     )
                     Spacer()
                     
@@ -99,23 +107,21 @@ struct SessionStatsCard<Footer: View>: View {
                         icon: "house.fill",
                         color: Color("PassiveColor"),
                         label: "HOME",
-                        value: formatSeconds(session?.timeAtHome ?? 0)
+                        value: formatSeconds(sessionState?.timeAtHome ?? session?.timeAtHome ?? 0)
                     )
                     Spacer()
                     StatItem(
                         icon: "steeringwheel",
                         color: Color("WageColor"),
                         label: "DRIVING",
-                        value: formatSeconds(session?.timeAway ?? 0)
+                        value: formatSeconds(sessionState?.timeAway ?? session?.timeAway ?? 0)
                     )
                     Spacer()
                     StatItem(
                         icon: "car.fill",
                         color: Color("MileageColor"),
                         label: settings.distanceUnit == .kilometers ? "Km" : "Miles",
-                        value: session != nil
-                            ? String(format: "%.1f", settings.displayDistance(miles: session!.totalMiles))
-                            : "0.0"
+                        value: String(format: "%.1f", settings.displayDistance(miles: (sessionState?.distanceMeters ?? session?.gpsDistanceMeters ?? 0) / 1609.34))
                     )
                     Spacer()
                 }
@@ -134,9 +140,9 @@ struct SessionStatsCard<Footer: View>: View {
                         icon: "hourglass",
                         color: Color("TipsColor"),
                         label: "PER HOUR",
-                        value: session?.earningsPerHour.formatted(
+                        value: (metrics.hourly).formatted(
                             .currency(code: session?.currencyCode ?? "USD")
-                        ) ?? "$0.00"
+                        )
                     )
                     Spacer()
                     
@@ -145,7 +151,7 @@ struct SessionStatsCard<Footer: View>: View {
                         icon: "road.lanes",
                         color: Color("FuelColor"),
                         label: settings.distanceUnit == .kilometers ? "PER KM" : "PER MILE",
-                        value: formattedNetPerDistance
+                        value: formattedNetPerDistance(metrics: metrics)
                     )
                     Spacer()
 
@@ -160,7 +166,7 @@ struct SessionStatsCard<Footer: View>: View {
                         icon: "clock.fill",
                         color: Color("WageColor"),
                         label: "Time",
-                        value: durationString
+                        value: sessionState != nil ? TimeFormatter.formatDuration(sessionState!.totalDuration) : durationString(at: date)
                     )
                     Spacer()
                     //miles
@@ -168,9 +174,7 @@ struct SessionStatsCard<Footer: View>: View {
                         icon: "car.fill",
                         color: Color("MileageColor"),
                         label: settings.distanceUnit == .kilometers ? "Km" : "Miles",
-                        value: session != nil
-                            ? String(format: "%.1f", settings.displayDistance(miles: session!.totalMiles))
-                            : "0.0"
+                        value: String(format: "%.1f", settings.displayDistance(miles: (sessionState?.distanceMeters ?? session?.gpsDistanceMeters ?? 0) / 1609.34))
                     )
                     Spacer()
 
@@ -189,9 +193,9 @@ struct SessionStatsCard<Footer: View>: View {
                         icon: "hourglass",
                         color: Color("TipsColor"),
                         label: "PER HOUR",
-                        value: session?.earningsPerHour.formatted(
+                        value: (metrics.hourly).formatted(
                             .currency(code: session?.currencyCode ?? "USD")
-                        ) ?? "$0.00"
+                        )
                     )
                     Spacer()
                     //permile
@@ -199,7 +203,7 @@ struct SessionStatsCard<Footer: View>: View {
                         icon: "road.lanes",
                         color: Color("FuelColor"),
                         label: settings.distanceUnit == .kilometers ? "PER KM" : "PER MILE",
-                        value: formattedNetPerDistance
+                        value: formattedNetPerDistance(metrics: metrics)
                     )
                     Spacer()
 
@@ -259,24 +263,73 @@ struct SessionStatsCard<Footer: View>: View {
         }
     }
 
-    private var formattedNetPerDistance: String {
-        guard let session = session, session.totalMiles > 0 else {
-            return "$0.00"
-        }
-        let perMile = Double(truncating: session.netPerMile as NSNumber)
-        let converted = settings.displayPerDistance(perMile: perMile)
-        return converted.formatted(.currency(code: session.currencyCode))
+    private func formattedNetPerDistance(metrics: (netProfit: Double, hourly: Double, perDist: Double)) -> String {
+        let converted = settings.displayPerDistance(perMile: metrics.perDist)
+        return converted.formatted(.currency(code: session?.currencyCode ?? "USD"))
     }
 
-    private var durationString: String {
+    private func durationString(at date: Date) -> String {
         guard let session = session else { return "0m 0s" }
         return session.durationString(
-            at: isLive ? timelineDate : (session.endTimestamp ?? timelineDate)
+            at: isLive ? date : (session.endTimestamp ?? date)
         )
     }
 
     private func formatSeconds(_ seconds: Double) -> String {
         return TimeFormatter.formatDuration(seconds)
+    }
+
+    // On-the-fly calc
+    private func calculateMetrics() -> (netProfit: Double, hourly: Double, perDist: Double) {
+        guard let session = session else { return (0,0,0) }
+        
+        let sState = sessionState
+        
+        // Use live state if available, else session totals
+        let timeAway = sState?.timeAway ?? session.timeAway
+        let timeAtHome = sState?.timeAtHome ?? session.timeAtHome
+        let distMeters = sState?.distanceMeters ?? session.gpsDistanceMeters
+        let totalTime = timeAway + timeAtHome
+        let miles = distMeters / 1609.34
+        
+        // 1. Wage
+        var wage: Double = 0
+        if session.wageTypeRaw == "Hourly" {
+             wage = (totalTime / 3600.0) * session.hourlyWage
+        } else if session.wageTypeRaw == "Split" {
+             wage = ((timeAway / 3600.0) * session.drivingWage) + 
+                    ((timeAtHome / 3600.0) * session.passiveWage)
+        }
+        
+        // 2. Reimbursements
+        var reimbursement: Double = 0
+        if session.reimbursementTypeRaw == "Per Mile" {
+            reimbursement = miles * session.mileageReimbursementRate
+        } else if session.reimbursementTypeRaw == "Per Delivery" {
+            reimbursement = Double(session.deliveriesCount) * (session.perDeliveryRate ?? 0)
+        }
+        
+        // 3. Tips
+        let tips = session.tips.reduce(0) { $0 + NSDecimalNumber(decimal: $1).doubleValue }
+        
+        let gross = wage + reimbursement + tips
+        
+        // 4. Expenses
+        var expenses: Double = 0
+        if session.includeGas && session.vehicleMPG > 0 {
+            expenses += (miles / session.vehicleMPG) * session.fuelPrice
+        }
+        if session.includeMaintenance {
+            expenses += miles * session.maintenanceCostPerMile
+        }
+        
+        let net = gross - expenses
+        
+        let hours = totalTime / 3600.0
+        let hourly = hours > 0 ? net / hours : 0
+        let perDist = miles > 0 ? net / miles : 0
+        
+        return (net, hourly, perDist)
     }
 }
 

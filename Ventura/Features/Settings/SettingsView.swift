@@ -67,6 +67,21 @@ struct SettingsForm: View {
                 }
             }
             
+            Section("Appearance") {
+                NavigationLink {
+                    SettingsBackgroundView(userSettings: userSettings)
+                } label: {
+                    HStack {
+                        Label("Background", systemImage: "paintbrush.fill")
+                        Spacer()
+                        Text(userSettings.backgroundStyle.displayName)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+            
             Section("Business Profile") {
 
                 
@@ -172,6 +187,14 @@ struct SettingsForm: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(
+            AppBackground(
+                style: userSettings.backgroundStyle,
+                userLocation: nil
+            )
+            .ignoresSafeArea()
+        )
         .navigationTitle("Settings")
         .toolbar {
             ToolbarItem(placement: .keyboard) {

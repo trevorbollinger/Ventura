@@ -10,22 +10,20 @@ import SwiftData
 
 @main
 struct VenturaApp: App {
+    // TEST 3b: SessionManager + TabView, but @Query stripped from VenturaTabs
     @StateObject private var sessionManager = SessionManager()
-    // Initialize WeatherManager to start background monitoring immediately
-    private let weatherManager = WeatherManager.shared
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             VenturaTabs()
                 .environmentObject(sessionManager)
-                // GLOBAL BACKGROUND LOADER: Keeps the gas price WebView alive
-                .background(
-                    WebViewContainer(webView: GasPriceFetcher.shared.webView)
-                        .frame(width: 0, height: 0)
-                        .opacity(0)
-                )
+                .onChange(of: scenePhase) { _, newPhase in
+                    if newPhase == .active {
+                        print("📱 ACTIVE at \(Date().formatted(date: .omitted, time: .standard))")
+                    }
+                }
         }
         .modelContainer(for: [UserSettings.self, Session.self])
     }
 }
-

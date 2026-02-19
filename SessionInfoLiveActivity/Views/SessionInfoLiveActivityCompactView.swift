@@ -20,23 +20,7 @@ struct CompactView: View {
     var body: some View {
         switch region {
         case .leading:
-            Text("00:00:00")
-                .font(.system(.caption, design: .rounded))
-                .fontWeight(.bold)
-                .monospacedDigit()
-                .hidden()
-                .overlay(alignment: .trailing) {
-                    Text(
-                        timerInterval: context.attributes.startTime...Date.distantFuture,
-                        countsDown: false
-                    )
-                    .monospacedDigit()
-                    .font(.system(.caption, design: .rounded))
-                    .fontWeight(.bold)
-                    .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.leading, 5)
+            CompactTimer(startTime: context.attributes.startTime)
 
         case .trailing:
             Text(context.state.netProfit, format: .currency(code: context.state.currencyCode))
@@ -44,7 +28,6 @@ struct CompactView: View {
                 .fontWeight(.bold)
                 .foregroundStyle(.green)
                 .contentTransition(.numericText())
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
@@ -55,6 +38,16 @@ struct CompactView: View {
     "Dynamic Island Compact",
     as: .dynamicIsland(.compact),
     using: SessionActivityAttributes.preview
+) {
+    SessionInfoLiveActivityLiveActivity()
+} contentStates: {
+    SessionActivityAttributes.ContentState.active
+}
+
+#Preview(
+    "Dynamic Island Compact - Over 1 Hour",
+    as: .dynamicIsland(.compact),
+    using: SessionActivityAttributes.previewOverOneHour
 ) {
     SessionInfoLiveActivityLiveActivity()
 } contentStates: {

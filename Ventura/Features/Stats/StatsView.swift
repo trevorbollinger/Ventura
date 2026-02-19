@@ -11,10 +11,23 @@ import Charts
 
 struct StatsView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Session.startTimestamp, order: .reverse) private var allSessions: [Session]
+    // PERFORMANCE: Use manual fetching instead of @Query to prevent
+    // automatic re-evaluation of ALL sessions on every app foreground resume.
+    // @Query keeps an active observer even when the tab is backgrounded.
+    @State private var allSessions: [Session] = []
+    
+    // Helper to load sessions manually
+    private func loadSessions() async {
+        let descriptor = FetchDescriptor<Session>(sortBy: [SortDescriptor(\.startTimestamp, order: .reverse)])
+        do {
+            allSessions = try modelContext.fetch(descriptor)
+        } catch {
+            print("StatsView: Failed to fetch sessions: \(error)")
+        }
+    }
     @Query private var settings: [UserSettings]
     
-    @State private var selectedTimeframe: Timeframe = .sevenDays
+    @State private var selectedTimeframe: Timeframe = .all
     
     let spacing = 13.0
     
@@ -139,8 +152,21 @@ struct StatsView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(
+                AppBackground(
+                    style: settings.first?.backgroundStyle ?? .mesh,
+                    userLocation: nil
+                )
+                .ignoresSafeArea()
+            )
             .navigationTitle("Analytics")
-            .background(Color(.systemGroupedBackground))
+        }
+        .task {
+            // Load data when tab appears.
+            // This runs async, so it doesn't block the main thread.
+            // It triggers when switching TO this tab, but NOT when app foregrounds (unless view re-appears).
+            await loadSessions()
         }
     }
     

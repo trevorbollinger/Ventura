@@ -7,9 +7,11 @@
 
 import SwiftUI
 import SwiftData
+import CoreLocation
 
 enum Tab: Int, CaseIterable, Identifiable {
     case dashboard
+    case drive
     case stats
     case settings
     case history
@@ -21,6 +23,7 @@ enum Tab: Int, CaseIterable, Identifiable {
         case .stats: return "Analytics"
         case .history: return "History"
         case .dashboard: return "Home"
+        case .drive: return "Drive"
         case .settings: return "Settings"
         }
     }
@@ -30,6 +33,7 @@ enum Tab: Int, CaseIterable, Identifiable {
         case .stats: return "chart.bar.xaxis"
         case .history: return "clock.fill"
         case .dashboard: return "house.fill"
+        case .drive: return "car.fill"
         case .settings: return "gearshape.fill"
         }
     }
@@ -38,13 +42,13 @@ enum Tab: Int, CaseIterable, Identifiable {
 struct VenturaTabs: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var sessionManager: SessionManager
-    
     @State private var selectedTab: Tab = .dashboard
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
     @State private var showingOnboarding = false
     
-    // Toggle this to force onboarding to show every time
     private let debugAlwaysShowOnboarding = false
+    
+    @Query private var settings: [UserSettings]
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -60,12 +64,12 @@ struct VenturaTabs: View {
                 }
                 .tag(Tab.stats)
             
-           
             HistoryView()
                 .tabItem {
                     Label(Tab.history.title, systemImage: Tab.history.icon)
                 }
                 .tag(Tab.history)
+            
             SettingsView()
                 .tabItem {
                     Label(Tab.settings.title, systemImage: Tab.settings.icon)
@@ -81,8 +85,6 @@ struct VenturaTabs: View {
                 showingOnboarding = true
                 hasSeenOnboarding = true
             }
-            
-            // Configure SessionManager
             sessionManager.configure(modelContext: modelContext)
         }
     }
