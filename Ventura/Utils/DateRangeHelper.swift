@@ -10,13 +10,13 @@ import Foundation
 struct DateRangeHelper {
     static let shared = DateRangeHelper()
     private let calendar: Calendar
-    
-    init() {
+
+    init(weekStartDay: WeekStartDay = .sunday) {
         var cal = Calendar.current
-        // Explicitly set first day of week to Monday
-        cal.firstWeekday = 2 
+        cal.firstWeekday = weekStartDay.calendarFirstWeekday
         self.calendar = cal
     }
+
     
     // MARK: - Current Week Logic
     

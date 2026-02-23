@@ -37,67 +37,55 @@ struct HistoryView: View {
     @State private var conflictingFields: [String] = []
     @State private var showDeleteConfirmation = false
     @State private var showCombineConfirmation = false
+    @State private var navigationPath: [Session] = []
     
     private var selectedSessions: [Session] {
         sessions.filter { selectedSessionIDs.contains($0.id) }
     }
     
     var body: some View {
-        NavigationStack {
-            List {
+        NavigationStack(path: $navigationPath) {
+            Group {
                 if sessions.isEmpty {
-                    ContentUnavailableView("No History", 
-                                           systemImage: "clock.arrow.circlepath", 
-                                           description: Text("Completed sessions will appear here."))
-                                        .transition(.opacity)
-
+                    ContentUnavailableView("No History",
+                                          systemImage: "clock.arrow.circlepath",
+                                          description: Text("Completed sessions will appear here."))
+                        .transition(.opacity)
                 } else {
-                    ForEach(sessions) { session in
-                        Group {
-                            if isSelecting {
-                                // Selection mode
-                                HStack(spacing: 12) {
-                                    Image(systemName: selectedSessionIDs.contains(session.id) ? "checkmark.circle.fill" : "circle")
-                                        .font(.title3)
-                                        .foregroundStyle(selectedSessionIDs.contains(session.id) ? .blue : .gray.opacity(0.3))
-                                                            .transition(.opacity)
-
-                                    
-                                    SessionRowContent(
-                                        startTimestamp: session.startTimestamp,
-                                        duration: session.durationString(),
-                                        netProfit: session.netProfit,
-                                        earningsPerHour: session.earningsPerHour,
-                                        currencyCode: session.currencyCode,
-                                        totalMiles: session.totalMiles,
-                                        settings: settings
-                                    )
-                                }
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    toggleSelection(for: session)
-                                }
-                            } else {
-                                // Normal mode
-                                NavigationLink(destination: SessionSummarySheet(session: session)) {
-                                    SessionRowContent(
-                                        startTimestamp: session.startTimestamp,
-                                        duration: session.durationString(),
-                                        netProfit: session.netProfit,
-                                        earningsPerHour: session.earningsPerHour,
-                                        currencyCode: session.currencyCode,
-                                        totalMiles: session.totalMiles,
-                                        settings: settings
-                                    )
-                                }
+                    ScrollView {
+                        LazyVStack(spacing: 10) {
+                            ForEach(sessions) { session in
+                                SessionHistoryCard(
+                                    startTimestamp: session.startTimestamp,
+                                    endTimestamp: session.endTimestamp,
+                                    duration: session.durationString(),
+                                    netProfit: session.netProfit,
+                                    earningsPerHour: session.earningsPerHour,
+                                    netPerMile: session.netPerMile,
+                                    currencyCode: session.currencyCode,
+                                    totalMiles: session.totalMiles,
+                                    deliveriesCount: session.deliveriesCount,
+                                    settings: settings,
+                                    isSelecting: isSelecting,
+                                    isSelected: selectedSessionIDs.contains(session.id),
+                                    onTap: {
+                                        if isSelecting {
+                                            toggleSelection(for: session)
+                                        } else {
+                                            navigationPath.append(session)
+                                        }
+                                    }
+                                )
                             }
                         }
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
                     }
-                    .onDelete(perform: deleteSessions)
-                    .deleteDisabled(isSelecting)
                 }
             }
-            .scrollContentBackground(.hidden)
+            .navigationDestination(for: Session.self) { session in
+                SessionSummarySheet(session: session)
+            }
             .background(
                 AppBackground(
                     style: settings.backgroundStyle,
@@ -195,9 +183,6 @@ struct HistoryView: View {
         }
         
         // Delete from context
-        // Ideally we should do this slightly after asking UI to update, but doing it here is usually fine
-        // IF the UI views don't depend on the deleted objects.
-        // Now that SessionRowContent uses values, it should be safe.
         for session in sessionsToDelete {
             modelContext.delete(session)
         }
@@ -258,61 +243,11 @@ struct HistoryView: View {
         }
     }
     
-    private func deleteSessions(offsets: IndexSet) {
-        let sessionsToDelete = offsets.map { sessions[$0] }
-        
-        withAnimation {
-            sessions.remove(atOffsets: offsets)
-        }
-        
-        // Delete from context safely
-        for session in sessionsToDelete {
-            modelContext.delete(session)
-        }
-    }
+
     
 }
 
-// Extracted row content for reuse
-struct SessionRowContent: View {
-    let startTimestamp: Date
-    let duration: String
-    let netProfit: Decimal
-    let earningsPerHour: Decimal
-    let currencyCode: String
-    let totalMiles: Double
-    let settings: UserSettings
-    
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(startTimestamp.formatted(date: .abbreviated, time: .shortened))
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                
-                Text(duration)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            
-            Spacer()
-            
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(netProfit.formatted(.currency(code: currencyCode)))
-                    .font(.headline)
-                    .foregroundStyle(.green)
-                
-                Text("\(earningsPerHour.formatted(.currency(code: currencyCode)))/hr")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                
-                Text("\(String(format: "%.1f", settings.displayDistance(miles: totalMiles))) \(settings.distanceLabel)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-}    
+
 
 
 

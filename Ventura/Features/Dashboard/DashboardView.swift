@@ -55,6 +55,7 @@ struct DashboardView: View {
     
     
     var body: some View {
+        ZStack(alignment: .bottom) {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
@@ -70,69 +71,12 @@ struct DashboardView: View {
                             showHomeStats: currentSettings.homeLatitude != nil
                         )
                         .transition(.move(edge: .top).combined(with: .opacity))
+                        .onTapGesture {
+                            showDriveSheet = true
+                        }
                     }
                     
-                    // Start/Stop Button
-                    if activeSession != nil {
-                        // STOP BUTTON
-                        Button {
-                            showEndAlert = true
-                        } label: {
-                            HStack {
-                                Image(systemName: "stop.fill")
-                                Text("End Session")
-                            }
-                            .font(.title3.bold())
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 60)
-                            .background(Color.red)
-                            .cornerRadius(20)
-                            .glassModifier(
-                                in: RoundedRectangle(cornerRadius: 20)
-                            )
-                        }
-                        .sensoryFeedback(.success, trigger: startStopTrigger)
-                        .confirmationDialog(
-                            "End Session?",
-                            isPresented: $showEndAlert,
-                            titleVisibility: .visible
-                        ) {
-                            Button("End Session", role: .destructive) {
-                                startStopTrigger.toggle()
-                                stopSession()
-                            }
-                            Button("Cancel", role: .cancel) {}
-                        } message: {
-                            Text(
-                                "Are you sure you want to end your current session?"
-                            )
-                        }
-                    } else {
-                        // START BUTTON
-                        Button {
-                            startStopTrigger.toggle()
-                            startSession()
-                        } label: {
-                            HStack {
-                                Image(systemName: "play.fill")
-                                Text("Start Session")
-                            }
-                            .font(.title3.bold())
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 60)
-                            .background(Color.green)
-                            .cornerRadius(20)
-                            .glassModifier(
-                                in: RoundedRectangle(cornerRadius: 20)
-                            )
-                            .sensoryFeedback(
-                                .success,
-                                trigger: startStopTrigger
-                            )
-                        }
-                    }
+
                     
                   
                     
@@ -206,20 +150,75 @@ struct DashboardView: View {
                 
                 }
                 .padding()
+                .padding(.bottom, 80) // Leave room for floating button
             }
             .scrollContentBackground(.hidden)
             .appBackground(style: currentSettings.backgroundStyle ?? .mesh)
             .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.inline)
         }
-
-
+        
+        // MARK: - Floating Start/Stop Button
+        Group {
+            if activeSession != nil {
+                // STOP BUTTON
+                Button {
+                    showEndAlert = true
+                } label: {
+                    HStack {
+                        Image(systemName: "stop.fill")
+                        Text("End Session")
+                    }
+                    .font(.title3.bold())
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 60)
+                    .background(Color.red)
+                    .cornerRadius(20)
+                    .glassModifier(in: RoundedRectangle(cornerRadius: 20))
+                }
+                .sensoryFeedback(.success, trigger: startStopTrigger)
+                .confirmationDialog(
+                    "End Session?",
+                    isPresented: $showEndAlert,
+                    titleVisibility: .visible
+                ) {
+                    Button("End Session", role: .destructive) {
+                        startStopTrigger.toggle()
+                        stopSession()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Are you sure you want to end your current session?")
+                }
+            } else {
+                // START BUTTON
+                Button {
+                    startStopTrigger.toggle()
+                    startSession()
+                } label: {
+                    HStack {
+                        Image(systemName: "play.fill")
+                        Text("Start Session")
+                    }
+                    .font(.title3.bold())
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 60)
+                    .background(Color.green)
+                    .cornerRadius(20)
+                    .glassModifier(in: RoundedRectangle(cornerRadius: 20))
+                    .sensoryFeedback(.success, trigger: startStopTrigger)
+                }
+            }
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 8)
+        } // end ZStack
         .sheet(isPresented: $showDriveSheet) {
             NavigationStack {
                 DriveView()
             }
-            // Add presentationDetents if needed, or leave as default.
-            // User requested "a sheet that pops up".
              #if os(iOS)
             .presentationDetents([.large])
              #endif
@@ -241,30 +240,22 @@ struct DashboardView: View {
             }
         }
         .task {
-            // Load last session asynchronously (won't block main thread on foreground)
             await loadLastSession()
-            
             weatherManager.configure(with: currentSettings)
-            // Trigger initial fetch
             weatherManager.refreshWeatherIfNeeded(for: locationTracker.currentLocation)
-            
             let targetLocation = locationTracker.currentLocation ?? weatherManager.lastKnownLocation
             if let loc = targetLocation {
                 gasFetcher.fetchGasPrices(latitude: loc.coordinate.latitude, longitude: loc.coordinate.longitude)
             }
         }
-        // Removed .onChange(of: locationTracker.currentLocation) to prevent 1Hz re-renders.
-        // Side effects should be handled by specific components or Managers.
         .onChange(of: weatherManager.lastKnownLocation) { _, newLoc in
             if let loc = newLoc, !gasFetcher.isLoading && gasFetcher.lastError == nil {
                 gasFetcher.fetchGasPrices(latitude: loc.coordinate.latitude, longitude: loc.coordinate.longitude)
             }
         }
         .onChange(of: sessionManager.activeSession) { oldSession, newSession in
-            // If session just ended
             if oldSession != nil && newSession == nil {
                 showDriveSheet = false
-                // Add a small delay to allow drive sheet to dismiss before showing summary
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     showSummarySheet = true
                 }

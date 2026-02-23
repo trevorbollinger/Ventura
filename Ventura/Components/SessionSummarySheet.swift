@@ -184,7 +184,7 @@ struct SessionSummarySheet: View {
                                 }
                                 .padding(.top, 8)
                             } label: {
-                                Text("Session Details")
+                                Text("View Tips")
                                     .font(.headline)
                                     .foregroundStyle(.primary)
                             }
@@ -310,6 +310,13 @@ struct SessionSummarySheet: View {
             }
             .navigationTitle("Session Summary")
             .navigationBarTitleDisplayMode(.inline)
+            .scrollContentBackground(isPresentedAsSheet ? .visible : .hidden)
+            .background {
+                if !isPresentedAsSheet {
+                    AppBackground(style: settings.backgroundStyle, userLocation: nil)
+                        .ignoresSafeArea()
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     if isPresentedAsSheet {

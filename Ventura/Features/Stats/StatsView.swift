@@ -141,7 +141,8 @@ struct StatsView: View {
                                             sessions: filteredSessions,
                                             timeframe: selectedTimeframe,
                                             currencyCode: currentCurrencyCode,
-                                            distanceUnit: currentDistanceUnit
+                                            distanceUnit: currentDistanceUnit,
+                                            weekStartDay: settings.first?.weekStartDay ?? .sunday
                                         )
                                         .gridCellColumns(2) // Span both columns
                                     }
@@ -180,7 +181,7 @@ struct StatsView: View {
         return allSessions.filter { session in
             guard let end = session.endTimestamp else { return false }
             
-            let helper = DateRangeHelper.shared
+            let helper = DateRangeHelper(weekStartDay: settings.first?.weekStartDay ?? .sunday)
             
             switch selectedTimeframe {
             case .oneDay:
@@ -231,7 +232,7 @@ struct StatsView: View {
             return "No Data"
         }
         
-        let helper = DateRangeHelper.shared
+        let helper = DateRangeHelper(weekStartDay: settings.first?.weekStartDay ?? .sunday)
         let now = Date()
         
         switch selectedTimeframe {

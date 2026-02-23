@@ -42,6 +42,12 @@ final class UserSettings {
     var includeMaintenance: Bool = false
     var maintenanceCostPerMile: Double = 0.10
     var includeGas: Bool = true
+
+    // Display Preferences
+    var showWeatherPill: Bool = true
+
+    // Calendar
+    var weekStartsOnRaw: String = "sunday"
     
     init(driverType: DriverType = .contractor,
          mpg: Double = 24.0,
@@ -64,7 +70,9 @@ final class UserSettings {
          homeRadius: Double = 200.0,
          currencyCode: String = "USD",
          distanceUnitRaw: String = "mi",
-         backgroundStyle: BackgroundStyle = .mesh) {
+         backgroundStyle: BackgroundStyle = .mesh,
+         showWeatherPill: Bool = true,
+         weekStartDay: WeekStartDay = .sunday) {
         self.driverTypeRaw = driverType.rawValue
         self.mpg = mpg
         self.hourlyWage = hourlyWage
@@ -87,6 +95,30 @@ final class UserSettings {
         self.currencyCode = currencyCode
         self.distanceUnitRaw = distanceUnitRaw
         self.backgroundStyleRaw = backgroundStyle.rawValue
+        self.showWeatherPill = showWeatherPill
+        self.weekStartsOnRaw = weekStartDay.rawValue
+    }
+}
+
+enum WeekStartDay: String, CaseIterable, Identifiable {
+    case sunday = "sunday"
+    case saturday = "saturday"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .sunday: return "Sunday"
+        case .saturday: return "Saturday"
+        }
+    }
+
+    /// The Calendar.firstWeekday value (1 = Sunday, 7 = Saturday)
+    var calendarFirstWeekday: Int {
+        switch self {
+        case .sunday: return 1
+        case .saturday: return 7
+        }
     }
 }
 
@@ -157,9 +189,12 @@ extension UserSettings {
         get { BackgroundStyle(rawValue: backgroundStyleRaw) ?? .mesh }
         set { backgroundStyleRaw = newValue.rawValue }
     }
-    
 
-    
+    var weekStartDay: WeekStartDay {
+        get { WeekStartDay(rawValue: weekStartsOnRaw) ?? .sunday }
+        set { weekStartsOnRaw = newValue.rawValue }
+    }
+
     // MARK: - Display Helpers
     
     /// Convert miles to the user's current display unit

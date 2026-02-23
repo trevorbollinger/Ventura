@@ -16,6 +16,7 @@ struct StatsChartCard: View {
     let timeframe: Timeframe
     let currencyCode: String
     let distanceUnit: DistanceUnit
+    let weekStartDay: WeekStartDay
     
     // Helper enum for clarity
     enum GroupingUnit {
@@ -42,7 +43,7 @@ struct StatsChartCard: View {
         
         let calendar = Calendar.current
         var grouped: [Date: [Session]] = [:]
-        let helper = DateRangeHelper.shared
+        let helper = DateRangeHelper(weekStartDay: weekStartDay)
         
         // 1. Group sessions by date bucket
         for session in sessions {

@@ -82,6 +82,16 @@ struct SettingsForm: View {
                 }
             }
             
+            Section {
+                Toggle(isOn: $userSettings.showWeatherPill) {
+                    Label("Show Weather Pill", systemImage: "cloud.sun.fill")
+                }
+            } header: {
+                Text("Display")
+            } footer: {
+                Text("Shows the current temperature and conditions during an active session.")
+            }
+            
             Section("Business Profile") {
 
                 
@@ -154,7 +164,7 @@ struct SettingsForm: View {
             }
             
 
-            Section("Units & Currency") {
+            Section("Units & Calendar") {
                 Picker("Currency", selection: $userSettings.currencyCode) {
                     Text("USD ($)").tag("USD")
                     Text("EUR (€)").tag("EUR")
@@ -170,7 +180,11 @@ struct SettingsForm: View {
                     }
                 }
                 
-
+                Picker("Week Starts On", selection: $userSettings.weekStartDay) {
+                    ForEach(WeekStartDay.allCases) { day in
+                        Text(day.displayName).tag(day)
+                    }
+                }
             }
             
 //            Section {

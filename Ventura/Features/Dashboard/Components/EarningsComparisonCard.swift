@@ -8,6 +8,8 @@ struct EarningsComparisonCard: View {
     // and its .onChange(of: sessions) was triggering computeEarnings() cascading work.
     @Environment(\.modelContext) private var modelContext
     @State private var sessions: [Session] = []
+    @Query private var allSettings: [UserSettings]
+    private var userSettings: UserSettings { allSettings.first ?? UserSettings() }
     
     private func loadSessions() async {
         let ninetyDaysAgo = Calendar.current.date(byAdding: .day, value: -90, to: Date()) ?? Date()
@@ -134,7 +136,7 @@ struct EarningsComparisonCard: View {
         // Since we are on MainActor (View body context), let's yield first to let UI render.
         try? await Task.sleep(nanoseconds: 10_000_000) // 10ms yield
         
-        let helper = DateRangeHelper.shared
+        let helper = DateRangeHelper(weekStartDay: userSettings.weekStartDay)
         let currentStart: Date
         let previousInterval: DateInterval
 

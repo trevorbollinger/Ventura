@@ -176,7 +176,7 @@ private struct DriveViewOverlay: View {
                         Spacer()
 
                         // Weather Pill
-                        if let weather = weatherUI {
+                        if settings.showWeatherPill, let weather = weatherUI {
                             Link(destination: weatherURL) {
                                 HStack(spacing: 4) {
                                     Image(systemName: weather.conditionIcon)
