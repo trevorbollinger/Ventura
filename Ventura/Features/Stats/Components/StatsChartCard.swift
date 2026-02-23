@@ -174,57 +174,70 @@ struct StatsChartCard: View {
     }
 }
 
-#Preview {
+struct StatsChartCardPreviewHelper: View {
     let container = PreviewHelper.makeContainer()
     
-    let mockSettings = UserSettings()
-    mockSettings.hourlyWage = 15.0
-    mockSettings.reimbursement = 0.30
-    mockSettings.mpg = 25.0
-    
-    let s1 = Session(startTimestamp: Date().addingTimeInterval(-86400 * 1), userSettings: mockSettings)
-    s1.endTimestamp = Date().addingTimeInterval(-86400 * 1 + 3600)
-    s1.manualStartOdometer = 100
-    s1.manualEndOdometer = 110
-    s1.tips = [20.0]
-    
-    let s2 = Session(startTimestamp: Date().addingTimeInterval(-86400 * 2), userSettings: mockSettings)
-    s2.endTimestamp = Date().addingTimeInterval(-86400 * 2 + 3600)
-    s2.manualStartOdometer = 200
-    s2.manualEndOdometer = 215
-    s2.tips = [30.0]
-    
-    let s3 = Session(startTimestamp: Date().addingTimeInterval(-86400 * 3), userSettings: mockSettings)
-    s3.endTimestamp = Date().addingTimeInterval(-86400 * 3 + 3600)
-    s3.manualStartOdometer = 300
-    s3.manualEndOdometer = 320
-    s3.tips = [40.0]
-
-    return ZStack {
-        Color(.systemGroupedBackground).ignoresSafeArea()
-        ScrollView {
-            VStack {
-                StatsChartCard(
-                    type: .netProfit,
-                    value: "$1,204.50",
-                    sessions: [s1, s2, s3],
-                    timeframe: .sevenDays,
-                    currencyCode: "USD",
-                    distanceUnit: .miles
-                )
-                .frame(height: 300)
-                
-                StatsChartCard(
-                    type: .miles,
-                    value: "254.3 mi",
-                    sessions: [],
-                    timeframe: .sevenDays,
-                    currencyCode: "USD",
-                    distanceUnit: .miles
-                )
-            }
-            .padding()
-        }
+    private func makeSessions() -> [Session] {
+        let mockSettings = UserSettings()
+        mockSettings.hourlyWage = 15.0
+        mockSettings.reimbursement = 0.30
+        mockSettings.mpg = 25.0
+        
+        let s1 = Session(startTimestamp: Date().addingTimeInterval(-86400 * 1), userSettings: mockSettings)
+        s1.endTimestamp = Date().addingTimeInterval(-86400 * 1 + 3600)
+        s1.manualStartOdometer = 100
+        s1.manualEndOdometer = 110
+        s1.tips = [20.0]
+        
+        let s2 = Session(startTimestamp: Date().addingTimeInterval(-86400 * 2), userSettings: mockSettings)
+        s2.endTimestamp = Date().addingTimeInterval(-86400 * 2 + 3600)
+        s2.manualStartOdometer = 200
+        s2.manualEndOdometer = 215
+        s2.tips = [30.0]
+        
+        let s3 = Session(startTimestamp: Date().addingTimeInterval(-86400 * 3), userSettings: mockSettings)
+        s3.endTimestamp = Date().addingTimeInterval(-86400 * 3 + 3600)
+        s3.manualStartOdometer = 300
+        s3.manualEndOdometer = 320
+        s3.tips = [40.0]
+        
+        return [s1, s2, s3]
     }
-    .modelContainer(container)
+    
+    var body: some View {
+        ZStack {
+            Color(.systemGroupedBackground).ignoresSafeArea()
+            ScrollView {
+                VStack {
+                    StatsChartCard(
+                        type: .netProfit,
+                        value: "$1,204.50",
+                        sessions: makeSessions(),
+                        timeframe: .sevenDays,
+                        currencyCode: "USD",
+                        distanceUnit: .miles,
+                        weekStartDay: .sunday
+                    )
+                    .frame(height: 300)
+                    
+                    StatsChartCard(
+                        type: .miles,
+                        value: "254.3 mi",
+                        sessions: [],
+                        timeframe: .sevenDays,
+                        currencyCode: "USD",
+                        distanceUnit: .miles,
+                        weekStartDay: .sunday
+                    )
+                }
+                .padding()
+            }
+        }
+        .modelContainer(container)
+    }
 }
+
+#Preview {
+    StatsChartCardPreviewHelper()
+}
+
