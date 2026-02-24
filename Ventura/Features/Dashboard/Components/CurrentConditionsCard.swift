@@ -90,9 +90,9 @@ struct CurrentConditionsCard: View {
 }
 #Preview("Critical Alerts") {
     let container = PreviewHelper.makeContainer()
-    return VenturaTabs()
+    VenturaTabs()
         .modelContainer(container)
-        .environmentObject(SessionManager())
+        .environment(SessionManager())
         .onAppear {
             PreviewHelper.configureDashboardPreview(weather: .criticalAll)
         }

@@ -9,21 +9,7 @@ import SwiftUI
 import SwiftData
 
 struct HistoryView: View {
-    // PERFORMANCE: Manual fetch to prevent foreground lag
-    @State private var sessions: [Session] = []
-    
-    // Manual load
-    private func loadSessions() async {
-        let descriptor = FetchDescriptor<Session>(
-            predicate: #Predicate { $0.endTimestamp != nil },
-            sortBy: [SortDescriptor(\.startTimestamp, order: .reverse)]
-        )
-        do {
-            sessions = try modelContext.fetch(descriptor)
-        } catch {
-            print("HistoryView: Failed to fetch sessions: \(error)")
-        }
-    }
+    @State private var viewModel = HistoryViewModel()
     
     @Query private var allSettings: [UserSettings]
     private var settings: UserSettings { allSettings.first ?? UserSettings() }
@@ -40,13 +26,13 @@ struct HistoryView: View {
     @State private var navigationPath: [Session] = []
     
     private var selectedSessions: [Session] {
-        sessions.filter { selectedSessionIDs.contains($0.id) }
+        viewModel.sessions.filter { selectedSessionIDs.contains($0.id) }
     }
     
     var body: some View {
         NavigationStack(path: $navigationPath) {
             Group {
-                if sessions.isEmpty {
+                if viewModel.sessions.isEmpty {
                     ContentUnavailableView("No History",
                                           systemImage: "clock.arrow.circlepath",
                                           description: Text("Completed sessions will appear here."))
@@ -54,17 +40,9 @@ struct HistoryView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 10) {
-                            ForEach(sessions) { session in
+                            ForEach(viewModel.sessions) { session in
                                 SessionHistoryCard(
-                                    startTimestamp: session.startTimestamp,
-                                    endTimestamp: session.endTimestamp,
-                                    duration: session.durationString(),
-                                    netProfit: session.netProfit,
-                                    earningsPerHour: session.earningsPerHour,
-                                    netPerMile: session.netPerMile,
-                                    currencyCode: session.currencyCode,
-                                    totalMiles: session.totalMiles,
-                                    deliveriesCount: session.deliveriesCount,
+                                    session: session,
                                     settings: settings,
                                     isSelecting: isSelecting,
                                     isSelected: selectedSessionIDs.contains(session.id),
@@ -76,6 +54,15 @@ struct HistoryView: View {
                                         }
                                     }
                                 )
+                            }
+                            
+                            if viewModel.hasMoreData {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .onAppear {
+                                        viewModel.loadMore(modelContext: modelContext)
+                                    }
                             }
                         }
                         .padding(.horizontal)
@@ -104,8 +91,8 @@ struct HistoryView: View {
                             isSelecting = true
                         }
                     }
-                    .opacity(sessions.isEmpty ? 0 : 1)
-                    .disabled(sessions.isEmpty)
+                    .opacity(viewModel.sessions.isEmpty ? 0 : 1)
+                    .disabled(viewModel.sessions.isEmpty)
                 }
                 
                 ToolbarItem(placement: .topBarTrailing) {
@@ -161,33 +148,19 @@ struct HistoryView: View {
                 Text("Are you sure you want to combine these sessions into a single entry?")
             }
         }
-        .task {
-            // Load on appear
-            await loadSessions()
+        .onAppear {
+            if viewModel.sessions.isEmpty {
+                viewModel.loadInitialData(modelContext: modelContext)
+            }
         }
     }
     
     private func deleteSelectedSessions() {
-        // Collect IDs to delete
-        let idsToDelete = selectedSessionIDs
-        // Find objects to delete (before removing from array)
-        let sessionsToDelete = sessions.filter { idsToDelete.contains($0.id) }
-        
+        viewModel.remove(sessions: selectedSessionIDs, in: modelContext)
         withAnimation {
-            // Remove from local state immediately to trigger UI update
-            sessions.removeAll { idsToDelete.contains($0.id) }
-            
-            // Exit selection mode
             isSelecting = false
             selectedSessionIDs.removeAll()
         }
-        
-        // Delete from context
-        for session in sessionsToDelete {
-            modelContext.delete(session)
-        }
-        
-        try? modelContext.save()
     }
     
     private func toggleSelection(for session: Session) {
@@ -233,9 +206,7 @@ struct HistoryView: View {
             let _ = SessionCombiner.combine(sessionsToCombine, in: modelContext)
             
             // Refresh the list locally to reflect changes
-             Task {
-                await loadSessions()
-            }
+            viewModel.loadInitialData(modelContext: modelContext)
             
             // Exit selection mode
             isSelecting = false

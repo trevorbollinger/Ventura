@@ -12,7 +12,7 @@ import SwiftData
 struct StatsChartCard: View {
     let type: StatType
     let value: String
-    let sessions: [Session]
+    let chartDataPoints: [ChartDataPoint]
     let timeframe: Timeframe
     let currencyCode: String
     let distanceUnit: DistanceUnit
@@ -24,8 +24,7 @@ struct StatsChartCard: View {
     }
     
     private var groupingUnit: GroupingUnit {
-        // Dynamic smart grouping based on the range of data
-        guard let earliest = sessions.last?.startTimestamp else { return .day }
+        guard let earliest = chartDataPoints.first?.date else { return .day }
         let now = Date()
         let daysDiff = Calendar.current.dateComponents([.day], from: earliest, to: now).day ?? 0
         
@@ -36,75 +35,6 @@ struct StatsChartCard: View {
         } else {
             return .year
         }
-    }
-    
-    private var chartData: [(date: Date, value: Decimal)] {
-        let unit = groupingUnit
-        
-        let calendar = Calendar.current
-        var grouped: [Date: [Session]] = [:]
-        let helper = DateRangeHelper(weekStartDay: weekStartDay)
-        
-        // 1. Group sessions by date bucket
-        for session in sessions {
-            guard let end = session.endTimestamp else { continue }
-            
-            let key: Date
-            switch unit {
-            case .day:
-                key = calendar.startOfDay(for: end)
-            case .week:
-                key = helper.startOfWeek(for: end)
-            case .year:
-                key = calendar.date(from: calendar.dateComponents([.year], from: end)) ?? end
-            }
-            
-            grouped[key, default: []].append(session)
-        }
-        
-        // 2. Calculate value for each bucket based on StatType
-        let result = grouped.map { (date, sessions) -> (Date, Decimal) in
-            let value: Decimal
-            
-            switch type {
-            case .netProfit:
-                value = sessions.reduce(0) { $0 + $1.netProfit }
-                
-            case .miles:
-                let miles = sessions.reduce(0) { $0 + $1.totalMiles }
-                if distanceUnit == .kilometers {
-                    value = Decimal(miles * 1.60934)
-                } else {
-                    value = Decimal(miles)
-                }
-                
-            case .hours:
-                value = sessions.reduce(0) { $0 + $1.durationInHours }
-                
-            case .deliveries:
-                value = Decimal(sessions.reduce(0) { $0 + $1.deliveriesCount })
-                
-            case .hourlyProfit:
-                let totalProfit = sessions.reduce(0) { $0 + $1.netProfit }
-                let totalHours = sessions.reduce(0) { $0 + $1.durationInHours }
-                value = totalHours > 0 ? totalProfit / totalHours : 0
-                
-            case .dollarsPerMile:
-                let totalProfit = sessions.reduce(0) { $0 + $1.netProfit }
-                let totalMiles = sessions.reduce(0) { $0 + $1.totalMiles }
-                let perMile = totalMiles > 0 ? totalProfit / Decimal(totalMiles) : 0
-                
-                if distanceUnit == .kilometers {
-                    value = perMile / 1.60934
-                } else {
-                    value = perMile
-                }
-            }
-            
-            return (date, value)
-        }
-        
-        return result.sorted { $0.0 < $1.0 }
     }
     
     var body: some View {
@@ -134,8 +64,8 @@ struct StatsChartCard: View {
             }
             .padding([.horizontal, .top])
             
-            if !chartData.isEmpty {
-                Chart(chartData, id: \.date) { item in
+            if !chartDataPoints.isEmpty {
+                Chart(chartDataPoints, id: \.date) { item in
                     BarMark(
                         x: .value("Date", item.date, unit: calendarUnit),
                         y: .value(type.title, item.value)
@@ -212,7 +142,7 @@ struct StatsChartCardPreviewHelper: View {
                     StatsChartCard(
                         type: .netProfit,
                         value: "$1,204.50",
-                        sessions: makeSessions(),
+                        chartDataPoints: [],
                         timeframe: .sevenDays,
                         currencyCode: "USD",
                         distanceUnit: .miles,
@@ -223,7 +153,7 @@ struct StatsChartCardPreviewHelper: View {
                     StatsChartCard(
                         type: .miles,
                         value: "254.3 mi",
-                        sessions: [],
+                        chartDataPoints: [],
                         timeframe: .sevenDays,
                         currencyCode: "USD",
                         distanceUnit: .miles,

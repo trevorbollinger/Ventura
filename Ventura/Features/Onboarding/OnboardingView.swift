@@ -283,7 +283,7 @@ struct PermissionsPage: View {
             Spacer()
             
             VStack(spacing: 10) {
-                Text("Enable the Auto-Pilot")
+                Text("Enable Permissions")
                     .font(.largeTitle.weight(.bold))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
@@ -297,7 +297,6 @@ struct PermissionsPage: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal)
-            
             
             
             Spacer()

@@ -41,7 +41,7 @@ enum Tab: Int, CaseIterable, Identifiable {
 
 struct VenturaTabs: View {
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject private var sessionManager: SessionManager
+    @Environment(SessionManager.self) private var sessionManager
     @State private var selectedTab: Tab = .dashboard
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
     @State private var showingOnboarding = false
@@ -93,14 +93,14 @@ struct VenturaTabs: View {
 
 #Preview {
     let container = PreviewHelper.makeContainer()
-    return VenturaTabs()
+    VenturaTabs()
         .modelContainer(container)
-        .environmentObject(SessionManager())
+        .environment(SessionManager())
 }
 
 #Preview("Empty State") {
     let container = PreviewHelper.makeEmptyContainer()
-    return VenturaTabs()
+    VenturaTabs()
         .modelContainer(container)
-        .environmentObject(SessionManager())
+        .environment(SessionManager())
 }

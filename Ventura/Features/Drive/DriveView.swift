@@ -8,7 +8,7 @@ struct DriveView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var permissionManager = PermissionManager.shared
-    @EnvironmentObject private var sessionManager: SessionManager  // NEW: Injected
+    @Environment(SessionManager.self) private var sessionManager  // NEW: Injected
     @ObservedObject private var weatherManager = WeatherManager.shared
 
     // PERFORMANCE: Manual fetch instead of @Query to prevent
@@ -317,9 +317,9 @@ extension Session {
 
 #Preview {
     let container = PreviewHelper.makeContainer()
-    return NavigationStack {
+    NavigationStack {
         DriveView()
     }
     .modelContainer(container)
-    .environmentObject(SessionManager())
+    .environment(SessionManager())
 }

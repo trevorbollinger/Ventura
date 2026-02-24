@@ -11,7 +11,7 @@ import SwiftData
 /// A "Smart" view that observes the high-frequency ticker.
 /// This isolates the 1Hz redraws to this component only.
 struct LiveSessionStats: View {
-    @EnvironmentObject private var sessionManager: SessionManager
+    @Environment(SessionManager.self) private var sessionManager
     // We observe the ticker directly here
     @ObservedObject var ticker: SessionTicker
     

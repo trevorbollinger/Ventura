@@ -14,16 +14,20 @@ import SwiftUI
 /// Manages the active session, timer, wage calculations, and GPS synchronization.
 /// Designed to persist and run independently of the Dashboard UI.
 @MainActor
-class SessionManager: ObservableObject {
+@Observable
+class SessionManager {
+    @ObservationIgnored
     static let shared = SessionManager() // Shared for convenience, but we'll try to use Environment
     
     // Dependencies
+    @ObservationIgnored
     private var modelContext: ModelContext?
-    @ObservedObject var locationTracker = LocationTracker.shared
+    @ObservationIgnored
+    var locationTracker = LocationTracker.shared
     
     // State
-    @Published var activeSession: Session?
-    @Published var lastEndedSession: Session?
+    var activeSession: Session?
+    var lastEndedSession: Session?
     
     // Dependencies
     public let ticker = SessionTicker()
@@ -31,20 +35,39 @@ class SessionManager: ObservableObject {
 
     
     // Timer
+    @ObservationIgnored
     private var timer: AnyCancellable?
+    @ObservationIgnored
     private var locationSubscription: AnyCancellable?
     
     // Fallback for timer loop
+    @ObservationIgnored
     private var lastUpdateDate: Date = Date()
     
     // Performance Cache — exposed so views can read settings without their own @Query
-    @Published var cachedSettings: UserSettings?
+    var cachedSettings: UserSettings?
+    
+    // Cache for StatsView
+    var cachedStats: StatsCache = StatsCache()
+    var selectedTimeframe: Timeframe = .sevenDays {
+        didSet {
+            // Re-run calculations when the filter changes
+            recalculateStats()
+        }
+    }
+    @ObservationIgnored
+    private var isCalculatingStats = false
     
     // Aggregation State (prevents 1Hz DB writes)
+    @ObservationIgnored
     private var pendingTimeAtHome: TimeInterval = 0
+    @ObservationIgnored
     private var pendingTimeAway: TimeInterval = 0
+    @ObservationIgnored
     private var pendingDistance: Double = 0 // In meters
-    @Published private(set) var pendingRoutePoints: [LocationData] = [] // Buffered GPS points (exposed for live map)
+    
+    private(set) var pendingRoutePoints: [LocationData] = [] // Buffered GPS points (exposed for live map)
+    @ObservationIgnored
     private var lastRouteIDUpdate: Date = .distantPast // Throttle routeID
     
     /// The full live route: saved points + in-memory pending points.
@@ -62,10 +85,10 @@ class SessionManager: ObservableObject {
         var isSessionActive: Bool = false
     }
     
-    // REMOVED @Published sessionState to prevent main thread thrashing
+    // REMOVED sessionState to prevent main thread thrashing
     
     // UI Optimization Signals
-    @Published var routeID: UUID = UUID() // Updates only when location/route changes
+    var routeID: UUID = UUID() // Updates only when location/route changes
     
     init() {}
     
@@ -100,6 +123,9 @@ class SessionManager: ObservableObject {
             
             LiveActivityManager.shared.start(session: activeSession!, settings: userSettings)
         }
+        
+        // 4. Calculate initial stats cache
+        recalculateStats()
     }
     
     private func checkForActiveSession() {
@@ -199,6 +225,9 @@ class SessionManager: ObservableObject {
             self.activeSession = nil
             self.ticker.state = ActiveSessionState() // Reset Ticker
         }
+        
+        // Update stats now that a session has finished
+        recalculateStats()
         print("🛑 Session Stopped")
     }
     
@@ -300,6 +329,7 @@ class SessionManager: ObservableObject {
             print("💾 Flushing 60s of data to DB...")
             flushPendingData()
             try? modelContext?.save()
+            recalculateStats()
         }
         
         // Update UI State (Lightweight - via Ticker)
@@ -473,5 +503,47 @@ class SessionManager: ObservableObject {
             currencyCode: settings.currencyCode,
             distanceUnitRaw: settings.distanceUnitRaw
         )
+    }
+    
+    // MARK: - Stats Calculation
+    
+    func recalculateStats() {
+        guard !isCalculatingStats else { return }
+        isCalculatingStats = true
+        
+        // Local copies for Sendable context
+        let timeframe = self.selectedTimeframe
+        let userSettings = self.cachedSettings ?? UserSettings()
+        let container = modelContext?.container
+        
+        Task.detached {
+            guard let container = container else { return }
+            let bgContext = ModelContext(container)
+            
+            let descriptor = FetchDescriptor<Session>(
+                predicate: #Predicate { $0.endTimestamp != nil },
+                sortBy: [SortDescriptor(\.startTimestamp, order: .reverse)]
+            )
+            
+            do {
+                let allSessions = try bgContext.fetch(descriptor)
+                
+                let calculatedStats = StatsCalculator.computeStats(
+                    sessions: allSessions,
+                    timeframe: timeframe,
+                    settings: userSettings
+                )
+                
+                await MainActor.run {
+                    self.cachedStats = calculatedStats
+                    self.isCalculatingStats = false
+                }
+            } catch {
+                print("SessionManager: Failed to calculate stats: \(error)")
+                await MainActor.run {
+                    self.isCalculatingStats = false
+                }
+            }
+        }
     }
 }

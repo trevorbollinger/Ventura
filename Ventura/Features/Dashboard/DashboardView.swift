@@ -13,7 +13,7 @@ internal import _LocationEssentials
 
 struct DashboardView: View {
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject private var sessionManager: SessionManager
+    @Environment(SessionManager.self) private var sessionManager
     @ObservedObject private var weatherManager = WeatherManager.shared
     private let locationTracker = LocationTracker.shared
     @ObservedObject private var gasFetcher = GasPriceFetcher.shared
@@ -77,14 +77,10 @@ struct DashboardView: View {
                     }
                     
 
-                    
-                  
-                    
-                    
                     // Live Map Card (only during active session)
                     if activeSession != nil {
                         LiveSessionMapCard()
-                            .environmentObject(sessionManager)
+                            .environment(sessionManager)
                             .transition(.move(edge: .top).combined(with: .opacity))
                             .onTapGesture {
                                 showDriveSheet = true 
@@ -120,7 +116,6 @@ struct DashboardView: View {
                     }
 
              
-                    
                     // Precipitation Alert
                     if weatherManager.ui?.isPrecipitationAlert == true {
                         PrecipWarningCard()
@@ -152,9 +147,7 @@ struct DashboardView: View {
                 .padding()
                 .padding(.bottom, 80) // Leave room for floating button
             }
-            .scrollContentBackground(.hidden)
-            .appBackground(style: currentSettings.backgroundStyle ?? .mesh)
-            .navigationTitle("Home")
+            .appBackground(style: currentSettings.backgroundStyle)
             .navigationBarTitleDisplayMode(.inline)
         }
         
@@ -278,9 +271,9 @@ struct DashboardView: View {
 
 #Preview("Normal") {
     let container = PreviewHelper.makeContainer()
-    return VenturaTabs()
+    VenturaTabs()
         .modelContainer(container)
-        .environmentObject(SessionManager())
+        .environment(SessionManager())
         .onAppear {
             PreviewHelper.configureDashboardPreview(weather: .mock)
         }
@@ -288,9 +281,9 @@ struct DashboardView: View {
 
 #Preview("Critical Alerts") {
     let container = PreviewHelper.makeContainer()
-    return VenturaTabs()
+    VenturaTabs()
         .modelContainer(container)
-        .environmentObject(SessionManager())
+        .environment(SessionManager())
         .onAppear {
             PreviewHelper.configureDashboardPreview(weather: .criticalAll)
         }

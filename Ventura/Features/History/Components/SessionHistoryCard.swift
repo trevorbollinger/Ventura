@@ -9,15 +9,7 @@ import SwiftUI
 import SwiftData
 
 struct SessionHistoryCard: View {
-    let startTimestamp: Date
-    let endTimestamp: Date?
-    let duration: String
-    let netProfit: Decimal
-    let earningsPerHour: Decimal
-    let netPerMile: Decimal
-    let currencyCode: String
-    let totalMiles: Double
-    let deliveriesCount: Int
+    let session: Session
     let settings: UserSettings
 
     let isSelecting: Bool
@@ -31,7 +23,7 @@ struct SessionHistoryCard: View {
             // HEADER: profit + date + indicator
             HStack(alignment: .center, spacing: 10) {
                 // Profit
-                Text(netProfit.formatted(.currency(code: currencyCode)))
+                Text(session.netProfit.formatted(.currency(code: session.currencyCode)))
                     .font(.system(size: profitSize, weight: .black, design: .rounded))
                     .foregroundStyle(
                         LinearGradient(
@@ -47,14 +39,14 @@ struct SessionHistoryCard: View {
 
                 // Date + times
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(startTimestamp.formatted(Date.FormatStyle().weekday(.abbreviated).month(.abbreviated).day()))
+                    Text(session.startTimestamp.formatted(Date.FormatStyle().weekday(.abbreviated).month(.abbreviated).day()))
                         .font(.caption.bold())
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
 
                     HStack(spacing: 4) {
-                        Text(startTimestamp.formatted(Date.FormatStyle().hour().minute()))
-                        if let end = endTimestamp {
+                        Text(session.startTimestamp.formatted(Date.FormatStyle().hour().minute()))
+                        if let end = session.endTimestamp {
                             Text("–")
                             Text(end.formatted(Date.FormatStyle().hour().minute()))
                         }
@@ -82,21 +74,21 @@ struct SessionHistoryCard: View {
             // BODY: stats
             HStack(alignment: .top, spacing: 0) {
                 Spacer()
-                HistoryStat(label: "Time", value: duration)
+                HistoryStat(label: "Time", value: session.durationString())
                 Spacer()
-                HistoryStat(label: "Per Hour", value: earningsPerHour.formatted(.currency(code: currencyCode)))
+                HistoryStat(label: "Per Hour", value: session.earningsPerHour.formatted(.currency(code: session.currencyCode)))
                 Spacer()
                 HistoryStat(
                     label: settings.distanceUnit == .kilometers ? "Per Km" : "Per Mile",
-                    value: settings.displayPerDistance(perMile: NSDecimalNumber(decimal: netPerMile).doubleValue).formatted(.currency(code: currencyCode))
+                    value: settings.displayPerDistance(perMile: NSDecimalNumber(decimal: session.netPerMile).doubleValue).formatted(.currency(code: session.currencyCode))
                 )
                 Spacer()
                 HistoryStat(
                     label: settings.distanceUnit == .kilometers ? "Km" : "Miles",
-                    value: String(format: "%.1f", settings.displayDistance(miles: totalMiles))
+                    value: String(format: "%.1f", settings.displayDistance(miles: session.totalMiles))
                 )
                 Spacer()
-                HistoryStat(label: "Deliv.", value: "\(deliveriesCount)")
+                HistoryStat(label: "Deliv.", value: "\(session.deliveriesCount)")
                 Spacer()
             }
         }

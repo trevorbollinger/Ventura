@@ -72,30 +72,30 @@ class CarPlayTemplateManager: NSObject {
     }
     
     private func setupSubscriptions() {
-        // Observe Session Start/Stop to redraw template structure
-        SessionManager.shared.$activeSession
-            .receive(on: RunLoop.main)
-            .sink { [weak self] session in
-                guard let self = self else { return }
-                
-                // If the template exists, rebuild it to swap the Start/Stop button
-                let newTemplate = self.generateDashboardTemplate()
-                self.dashboardTemplate = newTemplate
-                self.interfaceController.setRootTemplate(newTemplate, animated: true, completion: nil)
-                
-                // Run an immediate update if a session just started so the stats don't say $0 for the first second
-                if session != nil {
-                    self.updateTemplateTick()
-                }
-            }
-            .store(in: &cancellables)
+        // Track whether we had an active session to detect start/stop transitions
+        var wasActive = SessionManager.shared.activeSession != nil
         
-        // Observe exactly the same ticker the iOS UI uses for 1Hz updates
+        // Observe the ticker for 1Hz updates — also detect session start/stop transitions
         SessionManager.shared.ticker.$state
             .receive(on: RunLoop.main)
             .sink { [weak self] state in
-                guard state.isSessionActive else { return }
-                self?.updateTemplateTick()
+                guard let self = self else { return }
+                
+                let isActive = SessionManager.shared.activeSession != nil
+                
+                // Detect session state transition (start/stop)
+                if isActive != wasActive {
+                    wasActive = isActive
+                    let newTemplate = self.generateDashboardTemplate()
+                    self.dashboardTemplate = newTemplate
+                    self.interfaceController.setRootTemplate(newTemplate, animated: true, completion: nil)
+                    
+                    if isActive {
+                        self.updateTemplateTick()
+                    }
+                } else if state.isSessionActive {
+                    self.updateTemplateTick()
+                }
             }
             .store(in: &cancellables)
     }

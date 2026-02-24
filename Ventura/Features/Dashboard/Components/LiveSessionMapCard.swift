@@ -4,7 +4,7 @@ import CoreLocation
 import SwiftData
 
 struct LiveSessionMapCard: View {
-    @EnvironmentObject private var sessionManager: SessionManager
+    @Environment(SessionManager.self) private var sessionManager
     
     private var currentSettings: UserSettings { sessionManager.cachedSettings ?? UserSettings() }
     
@@ -125,9 +125,9 @@ private struct FrozenMap: View, Equatable {
 
 #Preview {
     let container = PreviewHelper.makeContainer()
-    return LiveSessionMapCard()
+    LiveSessionMapCard()
         .padding()
         .background(Color.black)
         .modelContainer(container)
-        .environmentObject(SessionManager())
+        .environment(SessionManager())
 }
