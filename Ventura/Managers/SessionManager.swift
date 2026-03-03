@@ -30,7 +30,7 @@ class SessionManager {
     var lastEndedSession: Session?
     
     // Dependencies
-    public let ticker = SessionTicker()
+    var activeSessionState = ActiveSessionState()
     
 
     
@@ -47,16 +47,7 @@ class SessionManager {
     // Performance Cache — exposed so views can read settings without their own @Query
     var cachedSettings: UserSettings?
     
-    // Cache for StatsView
-    var cachedStats: StatsCache = StatsCache()
-    var selectedTimeframe: Timeframe = .sevenDays {
-        didSet {
-            // Re-run calculations when the filter changes
-            recalculateStats()
-        }
-    }
-    @ObservationIgnored
-    private var isCalculatingStats = false
+
     
     // Aggregation State (prevents 1Hz DB writes)
     @ObservationIgnored
@@ -66,14 +57,29 @@ class SessionManager {
     @ObservationIgnored
     private var pendingDistance: Double = 0 // In meters
     
-    private(set) var pendingRoutePoints: [LocationData] = [] // Buffered GPS points (exposed for live map)
+    @ObservationIgnored
+    private(set) var pendingRoutePoints: [LocationData] = [] // Buffered GPS points
+    @ObservationIgnored
+    private var committedRoutePoints: [LocationData] = [] // In-memory mirror of session.route
     @ObservationIgnored
     private var lastRouteIDUpdate: Date = .distantPast // Throttle routeID
+    @ObservationIgnored
+    private var hasRecordedFirstPoint: Bool = false // Avoid faulting session.route
     
-    /// The full live route: saved points + in-memory pending points.
-    /// Maps should use this instead of session.route to see the trail immediately.
+    // RAM Cache to prevent SwiftData 1Hz faulting
+    @ObservationIgnored
+    private var ramTipsTotal: Decimal = 0
+    @ObservationIgnored
+    private var ramTipsCount: Int = 0
+    @ObservationIgnored
+    private var ramDeliveriesCount: Int = 0
+    
+    /// The full live route: committed (in-memory) + pending points.
+    /// CRITICAL: We NEVER read session.route back from SwiftData during a session.
+    /// SwiftData stores arrays as JSON blobs — deserializing a growing route
+    /// on every access was the root cause of the progressive lag after flush.
     var liveRoute: [LocationData] {
-        (activeSession?.route ?? []) + pendingRoutePoints
+        committedRoutePoints + pendingRoutePoints
     }
     
     // Live UI State (Published for views)
@@ -83,6 +89,11 @@ class SessionManager {
         var timeAway: TimeInterval = 0
         var distanceMeters: Double = 0
         var isSessionActive: Bool = false
+        var netProfit: Double = 0
+        var netHourly: Double = 0
+        var netPerDistance: Double = 0
+        var deliveriesCount: Int = 0
+        var averageTip: Double = 0
     }
     
     // REMOVED sessionState to prevent main thread thrashing
@@ -115,28 +126,46 @@ class SessionManager {
         checkForActiveSession()
         
         // 3. Resume monitoring if a session was already in progress
-        if activeSession != nil {
+        if let session = activeSession {
+            // Pre-fill in-memory route cache (only time we read from SwiftData)
+            committedRoutePoints = session.route
+            hasRecordedFirstPoint = !committedRoutePoints.isEmpty
+            
+            // Hydrate RAM tip caches from persisted session data
+            ramTipsTotal = session.tips.reduce(Decimal(0), +)
+            ramTipsCount = session.tips.count
+            ramDeliveriesCount = session.deliveriesCount
+            
             startTimer()
             startLocationMonitoring()
-            locationTracker.setDistance(activeSession?.gpsDistanceMeters ?? 0)
+            locationTracker.setDistance(session.gpsDistanceMeters)
             locationTracker.startTracking()
             
-            LiveActivityManager.shared.start(session: activeSession!, settings: userSettings)
+            LiveActivityManager.shared.start(session: session, settings: userSettings)
         }
         
-        // 4. Calculate initial stats cache
-        recalculateStats()
     }
     
     private func checkForActiveSession() {
         guard let context = modelContext else { return }
         
-        let descriptor = FetchDescriptor<Session>(
+        var descriptor = FetchDescriptor<Session>(
             predicate: #Predicate { $0.endTimestamp == nil }
         )
+        descriptor.sortBy = [SortDescriptor(\.startTimestamp, order: .reverse)]
         
         do {
             let sessions = try context.fetch(descriptor)
+            
+            if sessions.count > 1 {
+                print("⚠️ Found \(sessions.count) active sessions. Safeguard triggered.")
+                for duplicate in sessions.dropFirst() {
+                    duplicate.endTimestamp = Date()
+                    duplicate.manualEndOdometer = duplicate.gpsDistanceMeters / 1609.34
+                }
+                try? context.save()
+            }
+            
             self.activeSession = sessions.first
             if let s = activeSession {
                 print("🔄 Resuming active session: \(s.id)")
@@ -179,7 +208,13 @@ class SessionManager {
         pendingTimeAway = 0
         pendingDistance = 0
         pendingRoutePoints = []
+        committedRoutePoints = []
+        hasRecordedFirstPoint = false
         lastRouteIDUpdate = .distantPast
+        
+        ramTipsTotal = 0
+        ramTipsCount = 0
+        ramDeliveriesCount = 0
         
         startTimer()
         startLocationMonitoring()
@@ -223,11 +258,9 @@ class SessionManager {
         
         withAnimation {
             self.activeSession = nil
-            self.ticker.state = ActiveSessionState() // Reset Ticker
+            self.activeSessionState = ActiveSessionState() // Reset State
         }
         
-        // Update stats now that a session has finished
-        recalculateStats()
         print("🛑 Session Stopped")
     }
     
@@ -240,7 +273,11 @@ class SessionManager {
         session.tips.append(amount)
         if countAsDelivery {
             session.deliveriesCount += 1
+            ramDeliveriesCount += 1
         }
+        
+        ramTipsTotal += amount
+        ramTipsCount += 1
         session.invalidateCache()
         
         // Fetch current settings for Live Activity update
@@ -251,6 +288,40 @@ class SessionManager {
         }
         
         let currentState = currentSessionState(session: session, settings: userSettings)
+        LiveActivityManager.shared.update(state: currentState, force: true)
+    }
+    
+    func editTip(at index: Int, newAmount: Decimal) {
+        guard let session = activeSession,
+              session.tips.indices.contains(index) else { return }
+        
+        let oldAmount = session.tips[index]
+        session.tips[index] = newAmount
+        
+        // Update RAM cache
+        ramTipsTotal += (newAmount - oldAmount)
+        session.invalidateCache()
+        
+        let settings = self.cachedSettings ?? UserSettings()
+        let currentState = currentSessionState(session: session, settings: settings)
+        LiveActivityManager.shared.update(state: currentState, force: true)
+    }
+    
+    func removeTip(at index: Int) {
+        guard let session = activeSession,
+              session.tips.indices.contains(index) else { return }
+        
+        let removed = session.tips.remove(at: index)
+        
+        // Update RAM cache
+        ramTipsTotal -= removed
+        ramTipsCount = max(0, ramTipsCount - 1)
+        ramDeliveriesCount = max(0, ramDeliveriesCount - 1)
+        session.deliveriesCount = max(0, session.deliveriesCount - 1)
+        session.invalidateCache()
+        
+        let settings = self.cachedSettings ?? UserSettings()
+        let currentState = currentSessionState(session: session, settings: settings)
         LiveActivityManager.shared.update(state: currentState, force: true)
     }
     
@@ -324,12 +395,13 @@ class SessionManager {
 
         let totalPendingTime = pendingTimeAtHome + pendingTimeAway
         
-        // Periodically save (Flush every 60s) for persistence safety
-        if totalPendingTime >= 60 {
-            print("💾 Flushing 60s of data to DB...")
+        // Periodically save (Flush every 20s) for persistence safety.
+        // Flushing mutates session.route (SwiftData @Model), which triggers
+        // observation cascades. Less frequent = less lag.
+        if totalPendingTime >= 20 {
+            print("💾 Flushing 20s of data to DB...")
             flushPendingData()
             try? modelContext?.save()
-            recalculateStats()
         }
         
         // Update UI State (Lightweight - via Ticker)
@@ -338,28 +410,33 @@ class SessionManager {
         let liveTimeAway = session.timeAway + pendingTimeAway
         let liveTotalDuration = liveTimeAtHome + liveTimeAway
         
-        ticker.state = ActiveSessionState(
+        let currentState = currentSessionState(session: session, settings: cachedSettings ?? UserSettings())
+        
+        activeSessionState = ActiveSessionState(
             totalDuration: liveTotalDuration,
             timeAtHome: liveTimeAtHome,
             timeAway: liveTimeAway,
             distanceMeters: session.gpsDistanceMeters + pendingDistance,
-            isSessionActive: true
+            isSessionActive: true,
+            netProfit: currentState.netProfit,
+            netHourly: currentState.netHourlyProfit,
+            netPerDistance: currentState.netPerDistance,
+            deliveriesCount: ramDeliveriesCount,
+            averageTip: ramTipsCount > 0 ? NSDecimalNumber(decimal: ramTipsTotal / Decimal(ramTipsCount)).doubleValue : 0
         )
         
-        // Update Live Activity (Throttled: Every 15s or if distance changed significantly)
-        // For simplicity, just every 15s for now to ensure smoothness.
-        // We use Int(totalDuration) % 15 == 0 check.
-        if Int(totalDuration) % 15 == 0 {
-             let currentState = currentSessionState(session: session, settings: cachedSettings ?? UserSettings())
+        // Update Live Activity (Throttled: Every 5s)
+        // currentSessionState is already computed above — no extra work.
+        if Int(totalDuration) % 1 == 0 {
              LiveActivityManager.shared.update(state: currentState)
         }
     }
     
     private func processLocationUpdate(_ location: CLLocation?) {
-        guard let location = location, let session = activeSession else { return }
+        guard let location = location, activeSession != nil else { return }
         
         // Route Smoothing: Only record if moving or first point
-        if locationTracker.diagnostics.isEffectivelyMoving || session.route.isEmpty {
+        if locationTracker.diagnostics.isEffectivelyMoving || !hasRecordedFirstPoint {
             let locationData = LocationData(
                 latitude: location.coordinate.latitude,
                 longitude: location.coordinate.longitude,
@@ -369,6 +446,7 @@ class SessionManager {
             )
             // Buffer route point in memory (flushed to DB with flushPendingData)
             pendingRoutePoints.append(locationData)
+            hasRecordedFirstPoint = true
             
             // Throttle routeID signal to every 2 seconds for smooth map updates
             // without 1Hz redraws
@@ -401,11 +479,13 @@ class SessionManager {
         
         // Flush buffered route points to SwiftData
         if !pendingRoutePoints.isEmpty {
+            // 1. Write to SwiftData (disk) — write-only, we never read this back.
             session.route.append(contentsOf: pendingRoutePoints)
+            
+            // 2. Keep in-memory mirror for liveRoute (no SwiftData deserialization)
+            committedRoutePoints.append(contentsOf: pendingRoutePoints)
             pendingRoutePoints = []
-            // Also update routeID so map picks up new points
-            self.routeID = UUID()
-            lastRouteIDUpdate = Date()
+            // Route rendering is handled purely by the 2-second timer in processLocationUpdate!
         }
     }
     
@@ -414,8 +494,8 @@ class SessionManager {
         // Calculate virtual totals
         let liveTotalMiles = (session.gpsDistanceMeters + pendingDistance) / 1609.34
         
-        // 1. Calculate Gross Earnings
-        let tipsTotal = session.tips.reduce(0, +)
+        // 1. Calculate Gross Earnings from RAM
+        let tipsTotal = ramTipsTotal
         
         // Time Buckets
         let liveTimeAway = session.timeAway + pendingTimeAway
@@ -447,7 +527,7 @@ class SessionManager {
         
         let deliveryPay: Decimal
         if settings.reimbursementType == .perDelivery {
-            deliveryPay = Decimal(settings.reimbursement) * Decimal(session.deliveriesCount)
+            deliveryPay = Decimal(settings.reimbursement) * Decimal(ramDeliveriesCount)
         } else {
             deliveryPay = 0
         }
@@ -497,7 +577,7 @@ class SessionManager {
             netProfit: NSDecimalNumber(decimal: netProfit).doubleValue,
             netHourlyProfit: NSDecimalNumber(decimal: netHourly).doubleValue,
             netPerDistance: displayPerDistance,
-            deliveryCount: session.deliveriesCount,
+            deliveryCount: ramDeliveriesCount,
             totalDistance: displayDistance,
             lastUpdated: Date(),
             currencyCode: settings.currencyCode,
@@ -505,45 +585,4 @@ class SessionManager {
         )
     }
     
-    // MARK: - Stats Calculation
-    
-    func recalculateStats() {
-        guard !isCalculatingStats else { return }
-        isCalculatingStats = true
-        
-        // Local copies for Sendable context
-        let timeframe = self.selectedTimeframe
-        let userSettings = self.cachedSettings ?? UserSettings()
-        let container = modelContext?.container
-        
-        Task.detached {
-            guard let container = container else { return }
-            let bgContext = ModelContext(container)
-            
-            let descriptor = FetchDescriptor<Session>(
-                predicate: #Predicate { $0.endTimestamp != nil },
-                sortBy: [SortDescriptor(\.startTimestamp, order: .reverse)]
-            )
-            
-            do {
-                let allSessions = try bgContext.fetch(descriptor)
-                
-                let calculatedStats = StatsCalculator.computeStats(
-                    sessions: allSessions,
-                    timeframe: timeframe,
-                    settings: userSettings
-                )
-                
-                await MainActor.run {
-                    self.cachedStats = calculatedStats
-                    self.isCalculatingStats = false
-                }
-            } catch {
-                print("SessionManager: Failed to calculate stats: \(error)")
-                await MainActor.run {
-                    self.isCalculatingStats = false
-                }
-            }
-        }
-    }
 }

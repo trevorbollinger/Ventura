@@ -25,6 +25,7 @@ final class UserSettings {
     // Localization
     var currencyCode: String = "USD"
     var distanceUnitRaw: String = "mi"
+    var primaryMetricRaw: String = "hourly"
     
     // Background Style
     var backgroundStyleRaw: String = "mesh"
@@ -72,7 +73,8 @@ final class UserSettings {
          distanceUnitRaw: String = "mi",
          backgroundStyle: BackgroundStyle = .mesh,
          showWeatherPill: Bool = true,
-         weekStartDay: WeekStartDay = .sunday) {
+         weekStartDay: WeekStartDay = .sunday,
+         primaryMetric: PrimaryMetric = .hourly) {
         self.driverTypeRaw = driverType.rawValue
         self.mpg = mpg
         self.hourlyWage = hourlyWage
@@ -97,6 +99,7 @@ final class UserSettings {
         self.backgroundStyleRaw = backgroundStyle.rawValue
         self.showWeatherPill = showWeatherPill
         self.weekStartsOnRaw = weekStartDay.rawValue
+        self.primaryMetricRaw = primaryMetric.rawValue
     }
 }
 
@@ -222,5 +225,26 @@ extension UserSettings {
             return perMile / 1.60934
         }
         return perMile
+    }
+}
+
+enum PrimaryMetric: String, CaseIterable, Identifiable {
+    case hourly = "hourly"
+    case perDistance = "perDistance"
+    
+    var id: String { rawValue }
+    
+    var title: String {
+        switch self {
+        case .hourly: return "$/Hour"
+        case .perDistance: return "$/Distance"
+        }
+    }
+}
+
+extension UserSettings {
+    var primaryMetric: PrimaryMetric {
+        get { PrimaryMetric(rawValue: primaryMetricRaw) ?? .hourly }
+        set { primaryMetricRaw = newValue.rawValue }
     }
 }

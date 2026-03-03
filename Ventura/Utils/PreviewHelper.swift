@@ -12,6 +12,98 @@ import CoreLocation
 @MainActor
 struct PreviewHelper {
     
+    // MARK: - Settings
+    
+    static func mockSettings() -> UserSettings {
+        let s = UserSettings()
+        s.homeLatitude = 41.256230458882776
+        s.homeLongitude = -95.941144222386
+        s.homeRadius = 150
+        s.homeName = "Home"
+        s.homeIcon = "house.fill"
+        return s
+    }
+    
+    static func mockSettingsNoHome() -> UserSettings {
+        let s = UserSettings()
+        // No home set
+        return s
+    }
+    
+    // MARK: - Session State
+    
+    static var mockActiveSessionState: SessionManager.ActiveSessionState {
+        SessionManager.ActiveSessionState(
+            totalDuration: 7245,        // ~2 hours
+            timeAtHome: 1800,           // 30 min
+            timeAway: 5445,             // ~1.5 hours
+            distanceMeters: 48280,      // ~30 miles
+            isSessionActive: true,
+            netProfit: 47.82,
+            netHourly: 23.75,
+            netPerDistance: 1.59,
+            deliveriesCount: 8,
+            averageTip: 6.25
+        )
+    }
+    
+    static var mockSessionManager: SessionManager {
+        let manager = SessionManager()
+        manager.activeSessionState = mockActiveSessionState
+        manager.cachedSettings = mockSettings()
+        return manager
+    }
+    
+    static var mockSessionManagerNoHome: SessionManager {
+        let manager = SessionManager()
+        manager.activeSessionState = mockActiveSessionState
+        manager.cachedSettings = mockSettingsNoHome()
+        return manager
+    }
+    
+    static var mockRoute: [LocationData] {
+        generateRoute(
+            startLat: 41.256230458882776,
+            startLon: -95.941144222386,
+            points: 15
+        )
+    }
+    
+    // MARK: - View Models
+    
+    static var mockDashboardGraphViewModel: DashboardGraphViewModel {
+        DashboardGraphViewModel(
+            earningsPerHourData: [
+                BarDataPoint(label: "Mon", value: 22.50),
+                BarDataPoint(label: "Tue", value: 18.75),
+                BarDataPoint(label: "Wed", value: 31.20),
+                BarDataPoint(label: "Thu", value: 25.00),
+                BarDataPoint(label: "Fri", value: 28.40),
+                BarDataPoint(label: "Sat", value: 35.10),
+                BarDataPoint(label: "Sun", value: 19.80),
+            ],
+            hoursWorkedData: [
+                BarDataPoint(label: "Mon", value: 4.5),
+                BarDataPoint(label: "Tue", value: 6.2),
+                BarDataPoint(label: "Wed", value: 3.0),
+                BarDataPoint(label: "Thu", value: 7.8),
+                BarDataPoint(label: "Fri", value: 5.5),
+                BarDataPoint(label: "Sat", value: 8.1),
+                BarDataPoint(label: "Sun", value: 2.3),
+            ],
+            netEarningsData: [
+                BarDataPoint(label: "Mon", value: 85.00),
+                BarDataPoint(label: "Tue", value: 102.30),
+                BarDataPoint(label: "Wed", value: 67.50),
+                BarDataPoint(label: "Thu", value: 95.00),
+                BarDataPoint(label: "Fri", value: 110.20),
+                BarDataPoint(label: "Sat", value: 150.00),
+                BarDataPoint(label: "Sun", value: 72.40),
+            ]
+        )
+    }
+
+    
     static func makeContainer() -> ModelContainer {
         let schema = Schema([
             Session.self,
@@ -27,7 +119,28 @@ struct PreviewHelper {
         }
         
         // Also insert a default UserSettings if needed
-        let settings = UserSettings()
+        let settings = mockSettings()
+        container.mainContext.insert(settings)
+        
+        return container
+    }
+    
+    static func makeContainerNoHome() -> ModelContainer {
+        let schema = Schema([
+            Session.self,
+            UserSettings.self
+        ])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try! ModelContainer(for: schema, configurations: [config])
+        
+        // Populate with data
+        let sessions = generateMockSessions()
+        for session in sessions {
+            container.mainContext.insert(session)
+        }
+        
+        // Insert UserSettings without home
+        let settings = mockSettingsNoHome()
         container.mainContext.insert(settings)
         
         return container
@@ -42,7 +155,7 @@ struct PreviewHelper {
         let container = try! ModelContainer(for: schema, configurations: [config])
         
         // Populate only with settings, no sessions
-        let settings = UserSettings()
+        let settings = mockSettings()
         container.mainContext.insert(settings)
         
         return container
@@ -169,449 +282,4 @@ extension Double {
 
 
 
-@MainActor
-extension WeatherUIModel {
-    static let mock = WeatherUIModel(
-        temperature: "72°",
-        conditionIcon: "sun.max.fill",
-        conditionDescription: "Sunny",
-        apparentTemperature: "75°",
-        wind: "8 mph NW",
-        uvIndex: "6 (High)",
-        humidity: "42%",
-        visibility: "10 mi",
-        pressure: "29.92 inHg",
-        cloudCover: "12%",
-        highTemperature: "78°",
-        lowTemperature: "65°",
-        precipitationText: "No precipitation expected",
-        precipitationIcon: "sun.min.fill",
-        precipitationChance: "0%",
-        // Safety Defaults
-        isLowVisibility: false,
-        windSpeed: "8 mph",
-        windGust: "12 mph",
-        isHighWind: false,
-        extremeColdAlert: false,
-        extremeHeatAlert: false,
-        isPrecipitationAlert: false,
-        officialAlerts: [],
-        precipitationIntensityForecast: [],
-        locationTimeZone: .current
-    )
-    
-    static let rainTonight = WeatherUIModel(
-        temperature: "68°",
-        conditionIcon: "cloud.moon.rain.fill",
-        conditionDescription: "Rain",
-        apparentTemperature: "65°",
-        wind: "12 mph NW",
-        uvIndex: "0 (Low)",
-        humidity: "85%",
-        visibility: "4 mi",
-        pressure: "29.80 inHg",
-        cloudCover: "90%",
-        highTemperature: "72°",
-        lowTemperature: "60°",
-        precipitationText: "Rain tonight at 8 PM",
-        precipitationIcon: "cloud.rain.fill",
-        precipitationChance: "80%",
-        isLowVisibility: false,
-        windSpeed: "12 mph",
-        windGust: "15 mph",
-        isHighWind: false,
-        extremeColdAlert: false,
-        extremeHeatAlert: false,
-        isPrecipitationAlert: true,
-        officialAlerts: [
-            WeatherAlertModel(
-                summary: "Flood Watch",
-                detailsURL: URL(string: "https://weather.apple.com")!,
-                source: "National Weather Service",
-                severity: "Moderate"
-            )
-        ],
-        precipitationIntensityForecast: [0.1, 0.4, 0.8, 0.95, 0.9, 0.5].enumerated().map { index, intensity in
-            PrecipDataPoint(date: Date().addingTimeInterval(Double(index) * 3600), intensity: intensity)
-        },
-        locationTimeZone: .current
-    )
-    
-    static let rainInTwoDays = WeatherUIModel(
-        temperature: "70°",
-        conditionIcon: "cloud.sun.fill",
-        conditionDescription: "Partly Cloudy",
-        apparentTemperature: "72°",
-        wind: "5 mph W",
-        uvIndex: "4 (Moderate)",
-        humidity: "45%",
-        visibility: "10 mi",
-        pressure: "30.05 inHg",
-        cloudCover: "20%",
-        highTemperature: "75°",
-        lowTemperature: "58°",
-        precipitationText: "Rain in 2 days",
-        precipitationIcon: "cloud.rain.fill",
-        precipitationChance: "60%",
-        isLowVisibility: false,
-        windSpeed: "5 mph",
-        windGust: "8 mph",
-        isHighWind: false,
-        extremeColdAlert: false,
-        extremeHeatAlert: false,
-        isPrecipitationAlert: true,
-        officialAlerts: [],
-        precipitationIntensityForecast: [0, 0, 0.2, 0.5, 0.3, 0.1].enumerated().map { index, intensity in
-            PrecipDataPoint(date: Date().addingTimeInterval(Double(index) * 3600), intensity: intensity)
-        },
-        locationTimeZone: .current
-    )
-    
-    // Safety Mocks
-    
-    static let lowVisibility = WeatherUIModel(
-        temperature: "45°",
-        conditionIcon: "cloud.fog.fill",
-        conditionDescription: "Fog",
-        apparentTemperature: "42°",
-        wind: "3 mph N",
-        uvIndex: "1 (Low)",
-        humidity: "95%",
-        visibility: "0.2 mi",
-        pressure: "29.92 inHg",
-        cloudCover: "100%",
-        highTemperature: "50°",
-        lowTemperature: "40°",
-        precipitationText: "No precip",
-        precipitationIcon: "cloud.fog.fill",
-        precipitationChance: "0%",
-        isLowVisibility: true,
-        windSpeed: "3 mph",
-        windGust: "4 mph",
-        isHighWind: false,
-        extremeColdAlert: false,
-        extremeHeatAlert: false,
-        isPrecipitationAlert: false,
-        officialAlerts: [],
-        precipitationIntensityForecast: [],
-        locationTimeZone: .current
-    )
-    
-    static let highWind = WeatherUIModel(
-        temperature: "55°",
-        conditionIcon: "wind",
-        conditionDescription: "Windy",
-        apparentTemperature: "50°",
-        wind: "35 mph W",
-        uvIndex: "2 (Low)",
-        humidity: "40%",
-        visibility: "10 mi",
-        pressure: "29.50 inHg",
-        cloudCover: "80%",
-        highTemperature: "60°",
-        lowTemperature: "50°",
-        precipitationText: "No precip",
-        precipitationIcon: "wind",
-        precipitationChance: "0%",
-        isLowVisibility: false,
-        windSpeed: "35 mph",
-        windGust: "45 mph",
-        isHighWind: true,
-        extremeColdAlert: false,
-        extremeHeatAlert: false,
-        isPrecipitationAlert: false,
-        officialAlerts: [
-            WeatherAlertModel(
-                summary: "High Wind Warning",
-                detailsURL: URL(string: "https://weather.apple.com")!,
-                source: "National Weather Service",
-                severity: "Extreme"
-            )
-        ],
-        precipitationIntensityForecast: [],
-        locationTimeZone: .current
-    )
-    
-    static let extremeCold = WeatherUIModel(
-        temperature: "-15°",
-        conditionIcon: "thermometer.snowflake",
-        conditionDescription: "Frigid",
-        apparentTemperature: "-25°",
-        wind: "10 mph N",
-        uvIndex: "1 (Low)",
-        humidity: "30%",
-        visibility: "8 mi",
-        pressure: "30.50 inHg",
-        cloudCover: "20%",
-        highTemperature: "-5°",
-        lowTemperature: "-20°",
-        precipitationText: "No precip",
-        precipitationIcon: "sun.max.fill",
-        precipitationChance: "0%",
-        isLowVisibility: false,
-        windSpeed: "10 mph",
-        windGust: "15 mph",
-        isHighWind: false,
-        extremeColdAlert: true,
-        extremeHeatAlert: false,
-        isPrecipitationAlert: false,
-        officialAlerts: [],
-        precipitationIntensityForecast: [],
-        locationTimeZone: .current
-    )
-    
-    static let criticalAll = WeatherUIModel(
-        temperature: "-15°",
-        conditionIcon: "wind.snow",
-        conditionDescription: "Blizzard",
-        apparentTemperature: "-35°",
-        wind: "45 mph N",
-        uvIndex: "0 (Low)",
-        humidity: "90%",
-        visibility: "0.1 mi",
-        pressure: "29.10 inHg",
-        cloudCover: "100%",
-        highTemperature: "-5°",
-        lowTemperature: "-20°",
-        precipitationText: "Heavy snow",
-        precipitationIcon: "snowflake",
-        precipitationChance: "100%",
-        isLowVisibility: true,
-        windSpeed: "45 mph",
-        windGust: "60 mph",
-        isHighWind: true,
-        extremeColdAlert: true,
-        extremeHeatAlert: false,
-        isPrecipitationAlert: true,
-        officialAlerts: [
-            WeatherAlertModel(
-                summary: "Blizzard Warning",
-                detailsURL: URL(string: "https://weather.apple.com")!,
-                source: "National Weather Service",
-                severity: "Extreme"
-            ),
-            WeatherAlertModel(
-                summary: "Wind Chill Warning",
-                detailsURL: URL(string: "https://weather.apple.com")!,
-                source: "National Weather Service",
-                severity: "Extreme"
-            )
-        ],
-        precipitationIntensityForecast: [0.5, 0.75, 0.95, 1.0, 0.85, 0.7].enumerated().map { index, intensity in
-            PrecipDataPoint(date: Date().addingTimeInterval(Double(index) * 3600), intensity: intensity)
-        },
-        locationTimeZone: .current
-    )
-}
 
-extension PreviewHelper {
-    static func configureWeatherPreview(with state: WeatherUIModel) {
-        WeatherManager.shared.isPreview = true
-        WeatherManager.shared.mockData = state
-        WeatherManager.shared.ui = state
-    }
-    
-    // Overload for default mock to avoid isolation issues with default arguments
-    static func configureWeatherPreview() {
-        configureWeatherPreview(with: .mock)
-    }
-    
-    // MARK: - Gas Preview Configuration
-    static func configureGasPreview(stations: [GasStation]? = nil, isLoading: Bool = false, error: String? = nil) {
-        let fetcher = GasPriceFetcher.shared
-        fetcher.stations = stations ?? mockGasStations
-        fetcher.isLoading = isLoading
-        fetcher.lastError = error
-        fetcher.lastFetchTime = (stations ?? mockGasStations).isEmpty ? nil : Date()
-    }
-    
-    static func configureDashboardPreview(weather: WeatherUIModel? = nil, gasStations: [GasStation]? = nil) {
-        configureWeatherPreview(with: weather ?? .mock)
-        configureGasPreview(stations: gasStations)
-    }
-    
-    nonisolated static var mockGasStations: [GasStation] {
-        [
-            GasStation(
-                id: "1",
-                name: "Shell",
-                address: StationAddress(
-                    line1: "123 Main St",
-                    locality: "Omaha",
-                    postalCode: "68101",
-                    region: "NE",
-                    country: "USA"
-                ),
-                brands: [
-                    StationBrand(
-                        name: "Shell",
-                        imageUrl: "https://www.gasbuddy.com/assets/images/logos/stations/svg/shell.svg"
-                    )
-                ],
-                prices: [
-                    PriceReport(
-                        fuelProduct: "regular_gas",
-                        credit: FuelPrice(
-                            price: 3.45,
-                            formattedPrice: "$3.45",
-                            postedTime: Date().addingTimeInterval(-3600).ISO8601Format()
-                        ),
-                        cash: FuelPrice(
-                            price: 3.35,
-                            formattedPrice: "$3.35",
-                            postedTime: Date().addingTimeInterval(-3600).ISO8601Format()
-                        )
-                    )
-                ],
-                latitude: 41.2565,
-                longitude: -95.9345,
-                fuels: ["regular_gas", "midgrade", "premium", "diesel"],
-                starRating: 4.2
-            ),
-            GasStation(
-                id: "2",
-                name: "QuikTrip",
-                address: StationAddress(
-                    line1: "456 Dodge St",
-                    locality: "Omaha",
-                    postalCode: "68102",
-                    region: "NE",
-                    country: "USA"
-                ),
-                brands: [
-                    StationBrand(
-                        name: "QuikTrip",
-                        imageUrl: "https://www.gasbuddy.com/assets/images/logos/stations/svg/quiktrip.svg"
-                    )
-                ],
-                prices: [
-                    PriceReport(
-                        fuelProduct: "regular_gas",
-                        credit: FuelPrice(
-                            price: 3.39,
-                            formattedPrice: "$3.39",
-                            postedTime: Date().addingTimeInterval(-1800).ISO8601Format()
-                        ),
-                        cash: FuelPrice(
-                            price: 3.39,
-                            formattedPrice: "$3.39",
-                            postedTime: Date().addingTimeInterval(-1800).ISO8601Format()
-                        )
-                    )
-                ],
-                latitude: 41.2612,
-                longitude: -95.9412,
-                fuels: ["regular_gas", "midgrade", "premium"],
-                starRating: 4.5
-            ),
-            GasStation(
-                id: "3",
-                name: "Casey's General Store",
-                address: StationAddress(
-                    line1: "789 Farnam St",
-                    locality: "Omaha",
-                    postalCode: "68102",
-                    region: "NE",
-                    country: "USA"
-                ),
-                brands: [
-                    StationBrand(
-                        name: "Casey's",
-                        imageUrl: "https://www.gasbuddy.com/assets/images/logos/stations/svg/caseys.svg"
-                    )
-                ],
-                prices: [
-                    PriceReport(
-                        fuelProduct: "regular_gas",
-                        credit: FuelPrice(
-                            price: 3.52,
-                            formattedPrice: "$3.52",
-                            postedTime: Date().addingTimeInterval(-7200).ISO8601Format()
-                        ),
-                        cash: FuelPrice(
-                            price: 3.52,
-                            formattedPrice: "$3.52",
-                            postedTime: Date().addingTimeInterval(-7200).ISO8601Format()
-                        )
-                    )
-                ],
-                latitude: 41.2580,
-                longitude: -95.9380,
-                fuels: ["regular_gas", "midgrade", "premium", "diesel"],
-                starRating: 3.8
-            ),
-            GasStation(
-                id: "4",
-                name: "BP",
-                address: StationAddress(
-                    line1: "321 Pacific St",
-                    locality: "Omaha",
-                    postalCode: "68108",
-                    region: "NE",
-                    country: "USA"
-                ),
-                brands: [
-                    StationBrand(
-                        name: "BP",
-                        imageUrl: "https://www.gasbuddy.com/assets/images/logos/stations/svg/bp.svg"
-                    )
-                ],
-                prices: [
-                    PriceReport(
-                        fuelProduct: "regular_gas",
-                        credit: FuelPrice(
-                            price: 3.47,
-                            formattedPrice: "$3.47",
-                            postedTime: Date().addingTimeInterval(-5400).ISO8601Format()
-                        ),
-                        cash: FuelPrice(
-                            price: 3.42,
-                            formattedPrice: "$3.42",
-                            postedTime: Date().addingTimeInterval(-5400).ISO8601Format()
-                        )
-                    )
-                ],
-                latitude: 41.2590,
-                longitude: -95.9450,
-                fuels: ["regular_gas", "premium"],
-                starRating: 4.0
-            ),
-            GasStation(
-                id: "5",
-                name: "Costco Gas",
-                address: StationAddress(
-                    line1: "555 S 168th St",
-                    locality: "Omaha",
-                    postalCode: "68118",
-                    region: "NE",
-                    country: "USA"
-                ),
-                brands: [
-                    StationBrand(
-                        name: "Costco",
-                        imageUrl: "https://www.gasbuddy.com/assets/images/logos/stations/svg/costco.svg"
-                    )
-                ],
-                prices: [
-                    PriceReport(
-                        fuelProduct: "regular_gas",
-                        credit: FuelPrice(
-                            price: 3.29,
-                            formattedPrice: "$3.29",
-                            postedTime: Date().addingTimeInterval(-600).ISO8601Format()
-                        ),
-                        cash: FuelPrice(
-                            price: 3.29,
-                            formattedPrice: "$3.29",
-                            postedTime: Date().addingTimeInterval(-600).ISO8601Format()
-                        )
-                    )
-                ],
-                latitude: 41.2555,
-                longitude: -95.9500,
-                fuels: ["regular_gas", "premium"],
-                starRating: 4.7
-            )
-        ]
-    }
-}

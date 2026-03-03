@@ -232,7 +232,7 @@ struct SessionStatsCard<Footer: View>: View {
             icon: "briefcase.fill",
             color: .blue,
             label: "DELIVERIES",
-            value: "\(session?.deliveriesCount ?? 0)"
+            value: "\(sessionState?.deliveriesCount ?? session?.deliveriesCount ?? 0)"
         )
         .contentShape(Rectangle())
         .onTapGesture {
@@ -281,14 +281,16 @@ struct SessionStatsCard<Footer: View>: View {
 
     // On-the-fly calc
     private func calculateMetrics() -> (netProfit: Double, hourly: Double, perDist: Double) {
+        if let sState = sessionState {
+            return (sState.netProfit, sState.netHourly, sState.netPerDistance)
+        }
+        
         guard let session = session else { return (0,0,0) }
         
-        let sState = sessionState
-        
         // Use live state if available, else session totals
-        let timeAway = sState?.timeAway ?? session.timeAway
-        let timeAtHome = sState?.timeAtHome ?? session.timeAtHome
-        let distMeters = sState?.distanceMeters ?? session.gpsDistanceMeters
+        let timeAway = session.timeAway
+        let timeAtHome = session.timeAtHome
+        let distMeters = session.gpsDistanceMeters
         let totalTime = timeAway + timeAtHome
         let miles = distMeters / 1609.34
         

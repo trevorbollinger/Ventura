@@ -75,29 +75,33 @@ class CarPlayTemplateManager: NSObject {
         // Track whether we had an active session to detect start/stop transitions
         var wasActive = SessionManager.shared.activeSession != nil
         
-        // Observe the ticker for 1Hz updates — also detect session start/stop transitions
-        SessionManager.shared.ticker.$state
-            .receive(on: RunLoop.main)
-            .sink { [weak self] state in
-                guard let self = self else { return }
-                
-                let isActive = SessionManager.shared.activeSession != nil
-                
-                // Detect session state transition (start/stop)
-                if isActive != wasActive {
-                    wasActive = isActive
-                    let newTemplate = self.generateDashboardTemplate()
-                    self.dashboardTemplate = newTemplate
-                    self.interfaceController.setRootTemplate(newTemplate, animated: true, completion: nil)
+        // Use iOS 17 native observation tracking to replace Combine bindings
+        func observeState() {
+            withObservationTracking {
+                _ = SessionManager.shared.activeSessionState
+            } onChange: { [weak self] in
+                Task { @MainActor [weak self] in
+                    guard let self = self else { return }
                     
-                    if isActive {
+                    let isActive = SessionManager.shared.activeSession != nil
+                    
+                    if isActive != wasActive {
+                        wasActive = isActive
+                        let newTemplate = self.generateDashboardTemplate()
+                        self.dashboardTemplate = newTemplate
+                        self.interfaceController.setRootTemplate(newTemplate, animated: true, completion: nil)
+                    }
+                    
+                    if SessionManager.shared.activeSessionState.isSessionActive {
                         self.updateTemplateTick()
                     }
-                } else if state.isSessionActive {
-                    self.updateTemplateTick()
+                    
+                    observeState() // Recursively setup next observation
                 }
             }
-            .store(in: &cancellables)
+        }
+        
+        observeState()
     }
     
     private func updateTemplateTick() {
@@ -108,7 +112,7 @@ class CarPlayTemplateManager: NSObject {
         let state = SessionManager.shared.currentSessionState(session: session, settings: settings)
         
         // Format Time
-        let totalTimeInterval = SessionManager.shared.ticker.state.totalDuration
+        let totalTimeInterval = SessionManager.shared.activeSessionState.totalDuration
         let formatter = DateComponentsFormatter()
         formatter.allowedUnits = [.hour, .minute, .second]
         formatter.unitsStyle = .positional

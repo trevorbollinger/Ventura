@@ -7,33 +7,32 @@
 
 import SwiftUI
 import SwiftData
-import CoreLocation
 
 enum Tab: Int, CaseIterable, Identifiable {
     case dashboard
-    case drive
-    case stats
+    case sessions
+    case analytics
+    case map
     case settings
-    case history
     
     var id: Int { self.rawValue }
     
     var title: String {
         switch self {
-        case .stats: return "Analytics"
-        case .history: return "History"
         case .dashboard: return "Home"
-        case .drive: return "Drive"
+        case .sessions: return "Sessions"
+        case .analytics: return "Analytics"
+        case .map: return "Map"
         case .settings: return "Settings"
         }
     }
     
     var icon: String {
         switch self {
-        case .stats: return "chart.bar.xaxis"
-        case .history: return "clock.fill"
         case .dashboard: return "house.fill"
-        case .drive: return "car.fill"
+        case .sessions: return "clock.fill"
+        case .analytics: return "chart.bar.fill"
+        case .map: return "map.fill"
         case .settings: return "gearshape.fill"
         }
     }
@@ -44,40 +43,61 @@ struct VenturaTabs: View {
     @Environment(SessionManager.self) private var sessionManager
     @State private var selectedTab: Tab = .dashboard
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
+    // DO NOT use @Query here. VenturaTabs is the ROOT of the view tree.
+    // Any @Query at this level causes the ENTIRE app to re-render on every
+    // modelContext.save(). Use sessionManager.cachedSettings instead.
+    private var currentSettings: UserSettings { sessionManager.cachedSettings ?? UserSettings() }
+    
     @State private var showingOnboarding = false
     
     private let debugAlwaysShowOnboarding = false
     
 
     var body: some View {
-        TabView(selection: $selectedTab) {
+            
+        
+                
+            TabView(selection: $selectedTab) {
             DashboardView()
                 .tabItem {
                     Label(Tab.dashboard.title, systemImage: Tab.dashboard.icon)
                 }
                 .tag(Tab.dashboard)
             
-            StatsView()
+            SessionsView()
                 .tabItem {
-                    Label(Tab.stats.title, systemImage: Tab.stats.icon)
+                    Label(Tab.sessions.title, systemImage: Tab.sessions.icon)
                 }
-                .tag(Tab.stats)
-            
-            HistoryView()
+                .tag(Tab.sessions)
+
+            AnalyticsView()
                 .tabItem {
-                    Label(Tab.history.title, systemImage: Tab.history.icon)
+                    Label(Tab.analytics.title, systemImage: Tab.analytics.icon)
                 }
-                .tag(Tab.history)
+                .tag(Tab.analytics)
+
+            AllDrivingRoutesView()
+                .tabItem {
+                    Label(Tab.map.title, systemImage: Tab.map.icon)
+                }
+                .tag(Tab.map)
             
             SettingsView()
                 .tabItem {
                     Label(Tab.settings.title, systemImage: Tab.settings.icon)
                 }
                 .tag(Tab.settings)
+        
         }
         .sheet(isPresented: $showingOnboarding) {
             OnboardingView()
                 .interactiveDismissDisabled()
+        }
+        .fullScreenCover(isPresented: Binding(
+            get: { sessionManager.activeSession != nil },
+            set: { _ in }
+        )) {
+            DriveView()
         }
         .task {
             if !hasSeenOnboarding || debugAlwaysShowOnboarding {

@@ -14,8 +14,6 @@ struct LogDeliverySheet: View {
     var onSave: (Decimal, Bool) -> Void
 
     @State private var inputString: String = ""
-    @State private var sliderValue: Double = 0
-    @State private var isInteractingWithSlider = false
     @State private var countAsDelivery: Bool = true  // Default to true for "Log Delivery"
     
     init(initialValue: Decimal? = nil, isEditing: Bool = false, onSave: @escaping (Decimal, Bool) -> Void) {
@@ -25,7 +23,6 @@ struct LogDeliverySheet: View {
         
         if let initial = initialValue {
             _inputString = State(initialValue: "\(initial)")
-            _sliderValue = State(initialValue: NSDecimalNumber(decimal: initial).doubleValue)
         }
     }
 
@@ -54,45 +51,7 @@ struct LogDeliverySheet: View {
                     .padding(.horizontal)
                     .contentShape(Rectangle())
 
-                //                    // Quick Entry Slider
-                //                    VStack(spacing: 15) {
-                //                        HStack {
-                //                            Text("Quick Add")
-                //                                .font(.subheadline)
-                //                                .fontWeight(.medium)
-                //                                .foregroundStyle(.secondary)
-                //                            Spacer()
-                //                            Text(
-                //                                sliderValue == 0
-                //                                    ? "Slide to select" : "$\(Int(sliderValue))"
-                //                            )
-                //                            .font(.subheadline)
-                //                            .fontWeight(.bold)
-                //                            .foregroundStyle(.green)
-                //                        }
-                //
-                //                        HStack {
-                //                            Text("0")
-                //                                .font(.caption)
-                //                                .foregroundStyle(.secondary)
-                //                                .monospacedDigit()
-                //
-                //                            Slider(value: $sliderValue, in: 0...10, step: 1) {
-                //                                editing in
-                //                                isInteractingWithSlider = editing
-                //                            }
-                //                            .tint(.green)
-                //
-                //                            Text("10")
-                //                                .font(.caption)
-                //                                .foregroundStyle(.secondary)
-                //                                .monospacedDigit()
-                //                        }
-                //                    }
-                //                    .padding(.horizontal, 24)
-                //                    .padding(.vertical, 14)
-                //                    .glassModifier(in: RoundedRectangle(cornerRadius: 20))
-                //                    .padding(.horizontal)
+
 
                 Spacer()
 
@@ -101,21 +60,21 @@ struct LogDeliverySheet: View {
                     handleKeyPress(key)
                 }
 
-                // Count as Delivery Toggle
-                if !isEditing {
-                    Toggle(isOn: $countAsDelivery) {
-                        Text("Count as Delivery")
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                    }
-                    .tint(.green)
-
-                    .padding(.horizontal)
-                    .padding(.vertical)
-                    .glassModifier(in: RoundedRectangle(cornerRadius: 32))
-                    .padding(.horizontal)
-                }
-                Spacer()
+//                // Count as Delivery Toggle
+//                if !isEditing {
+//                    Toggle(isOn: $countAsDelivery) {
+//                        Text("Count as Delivery")
+//                            .font(.headline)
+//                            .foregroundStyle(.primary)
+//                    }
+//                    .tint(.green)
+//
+//                    .padding(.horizontal)
+//                    .padding(.vertical)
+//                    .background(Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 32))
+//                    .padding(.horizontal)
+//                }
+//                Spacer()
 
             }
 
@@ -147,41 +106,9 @@ struct LogDeliverySheet: View {
             }
         }
         #if os(iOS)
-            .presentationDetents([.fraction(0.85)])
+            .presentationDetents([.fraction(0.75)])
             .presentationDragIndicator(.visible)
         #endif
-
-        // Slider -> Input Sync
-        .onChange(of: sliderValue) { _, newValue in
-            guard isInteractingWithSlider else { return }
-
-            if newValue > 0 {
-                inputString = "\(Int(newValue))"
-            } else {
-                inputString = ""
-            }
-        }
-        .onChange(of: inputString) { _, newState in
-            guard !isInteractingWithSlider else { return }
-
-            if let val = Double(newState),
-                val >= 0,
-                val <= 10,
-                abs(val - round(val)) < 0.001
-            {
-                withAnimation(.snappy) {
-                    sliderValue = val
-                }
-            } else if newState.isEmpty {
-                withAnimation(.snappy) {
-                    sliderValue = 0
-                }
-            } else {
-                withAnimation(.snappy) {
-                    sliderValue = 0
-                }
-            }
-        }
     }
 
     private var displayString: String {
@@ -285,7 +212,7 @@ struct KeypadButton: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 70)
-            .glassModifier(in: RoundedRectangle(cornerRadius: 20))
+            .background(Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 20))
             .contentShape(Rectangle())
 
         }
@@ -301,7 +228,7 @@ struct KeypadButton: View {
             Color.clear
                 .sheet(isPresented: $isShowing) {
                     LogDeliverySheet { _, _ in }
-                        .presentationDetents([.fraction(0.90)])
+                        .presentationDetents([.fraction(0.75)])
                 }
         }
     }

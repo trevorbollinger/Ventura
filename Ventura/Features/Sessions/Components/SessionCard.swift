@@ -1,33 +1,32 @@
 //
-//  SessionHistoryCard.swift
+//  SessionCard.swift
 //  Ventura
 //
-//  Created by Trevor Bollinger on 2/23/26.
+//  Created for Ventura 2.0 rebuild.
+//  Displays a pre-formatted SessionSummaryItem. Zero calculations.
 //
 
 import SwiftUI
-import SwiftData
 
-struct SessionHistoryCard: View {
-    let session: Session
-    let settings: UserSettings
-
+struct SessionCard: View {
+    let item: SessionSummaryItem
     let isSelecting: Bool
     let isSelected: Bool
     let onTap: () -> Void
 
     @ScaledMetric(relativeTo: .title3) private var profitSize: CGFloat = 22
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-
+            
             // HEADER: profit + date + indicator
             HStack(alignment: .center, spacing: 10) {
                 // Profit
-                Text(session.netProfit.formatted(.currency(code: session.currencyCode)))
+                Text(item.profit)
                     .font(.system(size: profitSize, weight: .black, design: .rounded))
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [.green, .mint],
+                            colors: item.profitIsNegative ? [.red, .orange] : [.green, .mint],
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -39,16 +38,16 @@ struct SessionHistoryCard: View {
 
                 // Date + times
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(session.startTimestamp.formatted(Date.FormatStyle().weekday(.abbreviated).month(.abbreviated).day()))
+                    Text(item.date)
                         .font(.caption.bold())
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
 
                     HStack(spacing: 4) {
-                        Text(session.startTimestamp.formatted(Date.FormatStyle().hour().minute()))
-                        if let end = session.endTimestamp {
+                        Text(item.startTime)
+                        if let end = item.endTime {
                             Text("–")
-                            Text(end.formatted(Date.FormatStyle().hour().minute()))
+                            Text(end)
                         }
                     }
                     .font(.caption)
@@ -74,21 +73,15 @@ struct SessionHistoryCard: View {
             // BODY: stats
             HStack(alignment: .top, spacing: 0) {
                 Spacer()
-                HistoryStat(label: "Time", value: session.durationString())
+                SessionStat(label: "Time", value: item.duration)
                 Spacer()
-                HistoryStat(label: "Per Hour", value: session.earningsPerHour.formatted(.currency(code: session.currencyCode)))
+                SessionStat(label: "Per Hour", value: item.perHour)
                 Spacer()
-                HistoryStat(
-                    label: settings.distanceUnit == .kilometers ? "Per Km" : "Per Mile",
-                    value: settings.displayPerDistance(perMile: NSDecimalNumber(decimal: session.netPerMile).doubleValue).formatted(.currency(code: session.currencyCode))
-                )
+                SessionStat(label: item.perDistanceLabel, value: item.perDistance)
                 Spacer()
-                HistoryStat(
-                    label: settings.distanceUnit == .kilometers ? "Km" : "Miles",
-                    value: String(format: "%.1f", settings.displayDistance(miles: session.totalMiles))
-                )
+                SessionStat(label: item.distanceLabel, value: item.distance)
                 Spacer()
-                HistoryStat(label: "Deliv.", value: "\(session.deliveriesCount)")
+                SessionStat(label: "Deliv.", value: item.deliveries)
                 Spacer()
             }
         }
@@ -99,9 +92,9 @@ struct SessionHistoryCard: View {
     }
 }
 
-// MARK: - History Stat
+// MARK: - Stat Cell
 
-private struct HistoryStat: View {
+private struct SessionStat: View {
     let label: String
     let value: String
 
@@ -121,9 +114,60 @@ private struct HistoryStat: View {
     }
 }
 
+// MARK: - Previews
 
-#Preview {
-    let container = PreviewHelper.makeContainer()
-    return HistoryView()
-        .modelContainer(container)
+#Preview("Session Card") {
+    ZStack {
+        Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
+        
+        SessionCard(
+            item: SessionSummaryItem(
+                id: UUID(),
+                profit: "$45.00",
+                profitIsNegative: false,
+                date: "Sun Feb 23",
+                startTime: "12:00 PM",
+                endTime: "2:00 PM",
+                duration: "2h 0m",
+                perHour: "$22.50/hr",
+                perDistance: "$3.00",
+                perDistanceLabel: "Per Mile",
+                distance: "15.0",
+                distanceLabel: "Miles",
+                deliveries: "4"
+            ),
+            isSelecting: false,
+            isSelected: false,
+            onTap: {}
+        )
+        .padding()
+    }
+}
+
+#Preview("Session Card - Selecting") {
+    ZStack {
+        Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
+        
+        SessionCard(
+            item: SessionSummaryItem(
+                id: UUID(),
+                profit: "-$5.00",
+                profitIsNegative: true,
+                date: "Sun Feb 23",
+                startTime: "12:00 PM",
+                endTime: "2:00 PM",
+                duration: "2h 0m",
+                perHour: "-$2.50/hr",
+                perDistance: "-$0.33",
+                perDistanceLabel: "Per Mile",
+                distance: "15.0",
+                distanceLabel: "Miles",
+                deliveries: "4"
+            ),
+            isSelecting: true,
+            isSelected: true,
+            onTap: {}
+        )
+        .padding()
+    }
 }

@@ -185,6 +185,12 @@ struct SettingsForm: View {
                         Text(day.displayName).tag(day)
                     }
                 }
+                
+                Picker("Primary Metric", selection: $userSettings.primaryMetric) {
+                    ForEach(PrimaryMetric.allCases) { metric in
+                        Text(metric.title).tag(metric)
+                    }
+                }
             }
             
 //            Section {
@@ -202,13 +208,6 @@ struct SettingsForm: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(
-            AppBackground(
-                style: userSettings.backgroundStyle,
-                userLocation: nil
-            )
-            .ignoresSafeArea()
-        )
         .navigationTitle("Settings")
         .toolbar {
             ToolbarItem(placement: .keyboard) {

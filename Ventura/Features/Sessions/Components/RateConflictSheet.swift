@@ -215,30 +215,25 @@ struct FlowLayout: Layout {
         }
     }
 }
-struct RateConflictSheet_Previews: PreviewProvider {
-    static var previews: some View {
-        let settings1 = UserSettings(mpg: 24.0, hourlyWage: 15.0)
-        let settings2 = UserSettings(mpg: 28.0, hourlyWage: 20.0)
-        
-        let session1 = Session(startTimestamp: Date().addingTimeInterval(-7200), userSettings: settings1)
-        session1.endTimestamp = Date().addingTimeInterval(-3600)
-        
-        let session2 = Session(startTimestamp: Date().addingTimeInterval(-14400), userSettings: settings1)
-        session2.endTimestamp = Date().addingTimeInterval(-10800)
-        
-        let session3 = Session(startTimestamp: Date().addingTimeInterval(-21600), userSettings: settings2)
-        session3.endTimestamp = Date().addingTimeInterval(-18000)
-        
-        return Color.clear
-            .sheet(isPresented: .constant(true)) {
-                RateConflictSheet(
-                    sessions: [session1, session2, session3],
-                    conflictingFields: ["Hourly Wage", "Vehicle MPG"],
-                    onNormalize: { _ in }
-                )
-            }
-    }
+#Preview("Rate Conflict Sheet") {
+    let settings1 = UserSettings(mpg: 24.0, hourlyWage: 15.0)
+    let settings2 = UserSettings(mpg: 28.0, hourlyWage: 20.0)
+    
+    let session1 = Session(startTimestamp: Date().addingTimeInterval(-7200), userSettings: settings1)
+    session1.endTimestamp = Date().addingTimeInterval(-3600)
+    
+    let session2 = Session(startTimestamp: Date().addingTimeInterval(-14400), userSettings: settings1)
+    session2.endTimestamp = Date().addingTimeInterval(-10800)
+    
+    let session3 = Session(startTimestamp: Date().addingTimeInterval(-21600), userSettings: settings2)
+    session3.endTimestamp = Date().addingTimeInterval(-18000)
+    
+    return Color.clear
+        .sheet(isPresented: .constant(true)) {
+            RateConflictSheet(
+                sessions: [session1, session2, session3],
+                conflictingFields: ["Hourly Wage", "Vehicle MPG"],
+                onNormalize: { _ in }
+            )
+        }
 }
-
-
-

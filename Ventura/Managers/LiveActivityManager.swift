@@ -69,8 +69,8 @@ final class LiveActivityManager {
     func update(state: SessionActivityAttributes.ContentState, force: Bool = false) {
         guard let activity = activity else { return }
         
-        // Throttling: Only update if forced OR >15 seconds have passed
-        if !force, let last = lastPushDate, Date().timeIntervalSince(last) < 15 {
+        // Throttling: Only update if forced OR >5 seconds have passed
+        if !force, let last = lastPushDate, Date().timeIntervalSince(last) < 1 {
             return
         }
         

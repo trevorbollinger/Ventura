@@ -11,10 +11,9 @@ import CoreLocation
 struct SettingsBackgroundView: View {
     @Bindable var userSettings: UserSettings
     @ObservedObject private var locationTracker = LocationTracker.shared
-    @ObservedObject private var weatherManager = WeatherManager.shared
     
     var currentLocation: CLLocation? {
-        locationTracker.currentLocation ?? weatherManager.lastKnownLocation
+        locationTracker.currentLocation
     }
     
     var body: some View {
@@ -29,14 +28,7 @@ struct SettingsBackgroundView: View {
                         HStack(spacing: 16) {
                             // Preview
                             ZStack {
-                                switch style {
-                                case .mesh:
-                                    MeshGradientBackground()
-                                case .darkGradient:
-                                    DarkGradientBackground()
-                                case .blurredMap:
-                                    BlurredMapBackground(userLocation: currentLocation)
-                                }
+                               
                                 
                                 // Glass card overlay to show effect
                                 RoundedRectangle(cornerRadius: 8)
@@ -81,13 +73,7 @@ struct SettingsBackgroundView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(
-            AppBackground(
-                style: userSettings.backgroundStyle,
-                userLocation: currentLocation
-            )
-            .ignoresSafeArea()
-        )
+       
         .navigationTitle("Background")
         .navigationBarTitleDisplayMode(.inline)
     }

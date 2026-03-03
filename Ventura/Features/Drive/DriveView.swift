@@ -1,224 +1,153 @@
-import Combine
-import CoreLocation
+import SwiftUI
 import MapKit
 import SwiftData
-import SwiftUI
+
+// MARK: - Preference Keys for Dynamic Safe Area Insets
+private struct TopInsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct BottomInsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
 
 struct DriveView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var permissionManager = PermissionManager.shared
-    @Environment(SessionManager.self) private var sessionManager  // NEW: Injected
-    @ObservedObject private var weatherManager = WeatherManager.shared
-
-    // PERFORMANCE: Manual fetch instead of @Query to prevent
-    // synchronous re-evaluation of ALL completed sessions on every foreground resume.
-    // DriveView only needs the most recent session for display.
-    @State private var lastSession: Session?
+    @Environment(SessionManager.self) private var sessionManager
     
-    private func loadLastSession() async {
-        var descriptor = FetchDescriptor<Session>(
-            predicate: #Predicate { $0.endTimestamp != nil },
-            sortBy: [SortDescriptor(\.endTimestamp, order: .reverse)]
-        )
-        descriptor.fetchLimit = 1
-        do {
-            lastSession = try modelContext.fetch(descriptor).first
-        } catch {
-            print("DriveView: Failed to fetch last session: \(error)")
-        }
-    }
-
-    // Fetch user settings
-    @Query private var settings: [UserSettings]
-
+    // We fetch current settings from the cache to prevent @Query DB re-renders.
+    private var userSettings: UserSettings { sessionManager.cachedSettings ?? UserSettings() }
+    
+    // UI State variables
     @State private var showTipSheet = false
-    @State private var position: MapCameraPosition = .userLocation(
-        fallback: .automatic
-    )
-
+    @State private var showManageTipsSheet = false
     @State private var showEndAlert = false
-    @State private var startStopTrigger = false
-
-
-
+    @State private var cameraResetTrigger = 0
     @State private var isFollowingUser = true
-    @State private var lastCenterTime: Date = .distantPast
+    @State private var startStopTrigger = false
+    
+    // Map scope for externally-placed map controls
+    @Namespace private var mapScope
+    
+    // Measured overlay heights for dynamic map centering
+    @State private var topInset: CGFloat = 0
+    @State private var bottomInset: CGFloat = 0
 
+    
     var activeSession: Session? {
         sessionManager.activeSession
     }
-
-
+    
+    // MARK: - Body View
     var body: some View {
         ZStack {
-            // MARK: - Map Layer (Static, no timer dependency)
-            let userSettings = settings.first
-            let homeCoord: CLLocationCoordinate2D? = {
-                if let s = userSettings, let lat = s.homeLatitude, let lon = s.homeLongitude {
-                   return CLLocationCoordinate2D(latitude: lat, longitude: lon)
-                }
-                return nil
-            }()
-            
-            DriveSessionMap(
-                position: $position,
+            // 1. Map Layer
+            DriveMap(
+                route: sessionManager.liveRoute,
+                cameraResetTrigger: cameraResetTrigger,
                 isFollowingUser: $isFollowingUser,
-                session: activeSession,
-                routeID: sessionManager.routeID,
-                liveRoute: sessionManager.liveRoute,
-                homeLocation: homeCoord,
-                homeRadius: userSettings?.homeRadius ?? 0,
-                homeName: userSettings?.homeName ?? "Home",
-                homeIcon: userSettings?.homeIcon ?? "house.fill"
+                homeLocation: userSettings.homeLatitude.flatMap { lat in
+                    userSettings.homeLongitude.map { CLLocationCoordinate2D(latitude: lat, longitude: $0) }
+                },
+                homeRadius: userSettings.homeRadius,
+                homeName: userSettings.homeName ?? "Home",
+                homeIcon: userSettings.homeIcon ?? "house.fill",
+                scope: mapScope,
+                topInset: topInset,
+                bottomInset: bottomInset
             )
-            .equatable()
-            .safeAreaPadding(.horizontal, 5)
-            .safeAreaPadding(.bottom, 70)
-            .safeAreaPadding(.top, 320)
             
+            // 2. Control Layout Overlay
+            VStack(spacing: 0) {
+                // Top Section — measured for dynamic safe area
+                VStack(spacing: 0) {
+                    // Header (Stats)
+                    DriveSessionHeader(
+                        tickerState: sessionManager.activeSessionState,
+                        settings: userSettings
+                    )
+                    .padding(.horizontal)
 
-            // MARK: - UI Overlay (Timer-dependent, extracted)
-            DriveViewOverlay(
-                activeSession: activeSession,
-                lastSession: lastSession,
-                settings: settings.first ?? UserSettings(),
-                showTipSheet: $showTipSheet,
-                showEndAlert: $showEndAlert,
-                startStopTrigger: $startStopTrigger,
-                position: $position,
-                isFollowingUser: $isFollowingUser,
-                lastCenterTime: $lastCenterTime,
-                ticker: sessionManager.ticker,
-                weatherUI: weatherManager.ui,
-                weatherURL: weatherManager.weatherURL,
-                onStart: startSession,
-                onStop: stopSession
-            )
-            .padding(.top)
-        }
-        .animation(
-            .spring(response: 0.3, dampingFraction: 0.9),
-            value: activeSession != nil
-        )
-        .sheet(isPresented: $showTipSheet) {
-            LogDeliverySheet { amount, countAsDelivery in
-                sessionManager.addTip(
-                    amount,
-                    countAsDelivery: countAsDelivery
-                )
-            }
-        }
+                    // Top Controls Row
+                    HStack {
+                        
+                        //WEATHER PILL
+                        
+                        //GAS BUTTON
+                        
+                        Button {
+                            showManageTipsSheet = true
+                        } label: {
+                            Image(systemName: "list.bullet")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                                .padding(10)
+                                .glassModifier(in: Circle())
+                        }
+                        
+                        Spacer()
 
-
-        .toolbar(.hidden, for: .navigationBar)
-        .task {
-            sessionManager.refreshSettings()
-            await loadLastSession()
-        }
-    }
-
-// MARK: - Drive View Overlay (Timer-dependent UI)
-private struct DriveViewOverlay: View {
-    let activeSession: Session?
-    let lastSession: Session?
-    let settings: UserSettings
-    
-    @Binding var showTipSheet: Bool
-    @Binding var showEndAlert: Bool
-    @Binding var startStopTrigger: Bool
-    @Binding var position: MapCameraPosition
-    @Binding var isFollowingUser: Bool
-    @Binding var lastCenterTime: Date
-    let ticker: SessionTicker
-    let weatherUI: WeatherUIModel?
-    let weatherURL: URL
-    
-    let onStart: () -> Void
-    let onStop: () -> Void
-    
-    var body: some View {
-        VStack(spacing: 10) {
-            LiveSessionStats(
-                ticker: ticker,
-                session: activeSession ?? lastSession,
-                settings: settings,
-                isLive: activeSession != nil,
-                showHomeStats: settings.homeLatitude != nil
-            )
-            .onTapGesture {
-                // Handle tap if needed
-            }
-
-                HStack {
-                    if activeSession != nil {
                         Button {
                             showTipSheet = true
                         } label: {
-                            Label(
-                                "Delivery",
-                                systemImage: "plus.circle.fill"
-                            )
-                            .font(.headline)
-                            .foregroundStyle(.green)
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 20)
-                            .glassModifier(
-                                in: RoundedRectangle(cornerRadius: 20)
-                            )
-                        }
-                        .transition(.scale.combined(with: .opacity))
+                                Label(
+                                    "Delivery",
+                                    systemImage: "plus.circle.fill"
+                                )
+                                .font(.headline)
+                                .foregroundStyle(.green)
+                                .padding(.vertical, 10)
+                                .padding(.horizontal, 20)
+                                .glassModifier(
+                                    in: RoundedRectangle(cornerRadius: 20)
+                                )
+                            }
+                        
                     }
-                    Spacer()
-
-                    // Weather and Location Buttons
+                    .padding(.horizontal)
+                    .padding(.top, 7)
+                }
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(key: TopInsetKey.self, value: geo.size.height)
+                    }
+                )
+                
+                Spacer()
+                
+                // Footer — End button with map controls stacked on the right
+                VStack(spacing: 12) {
+                   
+                    
+                    // Map Controls — stacked vertically on the right
                     HStack {
                         Spacer()
-
-                        // Weather Pill
-                        if settings.showWeatherPill, let weather = weatherUI {
-                            Link(destination: weatherURL) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: weather.conditionIcon)
-                                        .symbolRenderingMode(.multicolor)
-                                    Text(weather.temperature)
-                                        .font(.headline)
-                                        .lineLimit(1)
-                                }
-                                .padding(12)
-                                .glassModifier(in: Capsule())
-                            }
-                            .buttonStyle(.plain)
-                        }
-
-
-
-                        // Location Button
-                        Button {
-                            withAnimation {
-                                lastCenterTime = Date()
-                                position = .userLocation(
-                                    fallback: .automatic
-                                )
+                        
+                        VStack(spacing: 10) {
+                            MapCompass(scope: mapScope)
+                                .mapControlVisibility(.visible)
+                            
+                            Button {
+                                cameraResetTrigger += 1
                                 isFollowingUser = true
+                            } label: {
+                                Image(systemName: isFollowingUser ? "location.fill" : "location")
+                                    .font(.title3)
+                                    .foregroundStyle(isFollowingUser ? .blue : .secondary)
+                                    .frame(width: 44, height: 44)
+                                    .glassModifier(in: Circle())
                             }
-                        } label: {
-                            Image(
-                                systemName: isFollowingUser
-                                    ? "location.fill" : "location"
-                            )
-                            .font(.title3)
-                            .padding(12)
-                            .glassModifier(in: Circle())
                         }
                     }
-                }
-
-                Spacer()
-
-                // MARK: BOTTOM ACTION BUTTON
-                if activeSession != nil {
-                    // STOP BUTTON
+                    
+                    
+                    // End Session Button
                     Button {
                         showEndAlert = true
                     } label: {
@@ -244,7 +173,8 @@ private struct DriveViewOverlay: View {
                     ) {
                         Button("End Session", role: .destructive) {
                             startStopTrigger.toggle()
-                            onStop()
+                            sessionManager.stopSession()
+                            dismiss()
                         }
                         Button("Cancel", role: .cancel) {}
                     } message: {
@@ -252,74 +182,44 @@ private struct DriveViewOverlay: View {
                             "Are you sure you want to end your current session?"
                         )
                     }
-                } else {
-                    // START BUTTON
-                    Button {
-                        startStopTrigger.toggle()
-                        onStart()
-                    } label: {
-                        HStack {
-                            Image(systemName: "play.fill")
-                            Text("Start Session")
-                        }
-                        .font(.title3.bold())
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 60)
-                        .background(Color.green)
-                        .cornerRadius(20)
-                        .glassModifier(
-                            in: RoundedRectangle(cornerRadius: 20)
-                        )
-                        .sensoryFeedback(
-                            .success,
-                            trigger: startStopTrigger
-                        )
-                    }
+                    
                 }
+                .padding(.horizontal)
             }
-            .padding(.horizontal)
-            .padding(.bottom, 10)
+        }
+        .mapScope(mapScope)
+        .onPreferenceChange(TopInsetKey.self) { topInset = $0 }
+        .onPreferenceChange(BottomInsetKey.self) { bottomInset = $0 }
+
+        
+        // Modal sheets
+        .sheet(isPresented: $showTipSheet) {
+            LogDeliverySheet { amount, countAsDelivery in
+                sessionManager.addTip(
+                    amount,
+                    countAsDelivery: countAsDelivery
+                )
+            }
+        }
+        .sheet(isPresented: $showManageTipsSheet) {
+            ManageTipsSheet()
+        }
+
     }
 }
 
-    private func startSession() {
-        sessionManager.startSession()
-    }
+// MARK: - Previews
 
-    private func stopSession() {
-        sessionManager.stopSession()
-        dismiss()
-    }
-
-    // --- HELPERS ---
-
-    private func durationString(from date: Date, now: Date) -> String {
-        let diff = max(0, now.timeIntervalSince(date))
-        return TimeFormatter.formatDuration(diff)
-    }
-
-    private func formatSeconds(_ seconds: Double) -> String {
-        return TimeFormatter.formatDuration(seconds)
-    }
-}
-
-// Helpers for Session formatting
-extension Session {
-    var startEndString: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        return formatter.string(from: startTimestamp)
-    }
-}
-
-
-#Preview {
+#Preview("Drive View") {
     let container = PreviewHelper.makeContainer()
-    NavigationStack {
-        DriveView()
-    }
-    .modelContainer(container)
-    .environment(SessionManager())
+    DriveView()
+        .modelContainer(container)
+        .environment(PreviewHelper.mockSessionManager)
+}
+
+#Preview("Drive View – No Home") {
+    let container = PreviewHelper.makeContainerNoHome()
+    DriveView()
+        .modelContainer(container)
+        .environment(PreviewHelper.mockSessionManagerNoHome)
 }
